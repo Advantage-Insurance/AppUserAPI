@@ -1,0 +1,570 @@
+﻿@page "/applicationusers"
+
+@using AppUserBlazor.Models
+@using AppUserBlazor.Services
+@inject ApplicationUserService ApplicationUserService
+
+<h3>Application Users</h3>
+
+<div class="mb-3">
+    <label class="form-label">Application ID</label>
+    <input type="number"
+           class="form-control"
+           @bind="applicationId" />
+</div>
+
+<div class="mb-3">
+    <label class="form-label">User ID</label>
+    <input type="number"
+           class="form-control"
+           @bind="userId" />
+</div>
+
+<div class="mt-2 mb-3">
+    <button class="btn btn-primary"
+            @onclick="LoadByApplicationAsync">
+        Load Application Users
+    </button>
+
+    <button class="btn btn-secondary"
+            @onclick="LoadAllAsync">
+        All Users
+    </button>
+
+    <button class="btn btn-success"
+            @onclick="FindUserAsync">
+        Find User
+    </button>
+    <button class="btn btn-info"
+            @onclick="LoadByUserAsync">
+        Load User Applications
+    </button>
+</div>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger">
+        @errorMessage
+    </div>
+}
+
+@if (selectedUser is not null)
+{
+    <div class="card mb-3">
+        <div class="card-body">
+
+            <h5 class="card-title">
+                @selectedUser.FirstName @selectedUser.LastName
+            </h5>
+
+            <p class="card-text">
+                <strong>Application:</strong>
+                @selectedUser.ApplicationCode
+            </p>
+
+            <p class="card-text">
+                <strong>User Name:</strong>
+                @selectedUser.UserName
+            </p>
+
+            <p class="card-text">
+                <strong>Email:</strong>
+                @selectedUser.Email
+            </p>
+
+            <p class="card-text">
+                <strong>Role:</strong>
+                @selectedUser.RoleName
+            </p>
+
+            <p class="card-text">
+                <strong>User Active:</strong>
+                @selectedUser.IsUserActive
+            </p>
+
+            <p class="card-text">
+                <strong>Application Access Active:</strong>
+                @selectedUser.IsApplicationAccessActive
+            </p>
+
+        </div>
+    </div>
+}
+
+@if (users is null)
+{
+    <p>Loading...</p>
+}
+else if (users.Count == 0)
+{
+    <p>
+        <strong>@statusMessage</strong>
+    </p>
+
+    <p>No users found.</p>
+}
+else
+{
+    <p>
+        <strong>@statusMessage</strong>
+    </p>
+
+
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Application</th>
+                <th>User</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>User Active</th>
+                <th>Access Active</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var user in users)
+            {
+                <tr>
+                    <td>@user.ApplicationCode</td>
+                    <td>@user.UserName</td>
+                    <td>@user.FirstName @user.LastName</td>
+                    <td>@user.Email</td>
+                    <td>@user.RoleName</td>
+                    <td>@user.IsUserActive</td>
+                    <td>@user.IsApplicationAccessActive</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+}
+
+<hr class="my-4" />
+
+<h4>Create User</h4>
+
+<EditForm Model="newUser" OnValidSubmit="CreateUserAsync">
+    <div class="mb-3">
+        <label class="form-label">User Name</label>
+        <InputText class="form-control"
+                   @bind-Value="newUser.UserName" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">First Name</label>
+        <InputText class="form-control"
+                   @bind-Value="newUser.FirstName" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Last Name</label>
+        <InputText class="form-control"
+                   @bind-Value="newUser.LastName" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Email</label>
+        <InputText class="form-control"
+                   @bind-Value="newUser.Email" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Created By</label>
+        <InputNumber class="form-control"
+                     @bind-Value="newUser.CreatedBy" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">
+        Create User
+    </button>
+</EditForm>
+
+@if (!string.IsNullOrEmpty(createUserMessage))
+{
+    <div class="alert alert-success mt-3">
+        @createUserMessage
+    </div>
+}
+
+<hr class="my-4" />
+
+<h4>Add User to Application</h4>
+
+<EditForm Model="addToApplication"
+          OnValidSubmit="AddUserToApplicationAsync">
+
+    <div class="mb-3">
+        <label class="form-label">User ID</label>
+        <InputNumber class="form-control"
+                     @bind-Value="attachUserId" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Application ID</label>
+        <InputNumber class="form-control"
+                     @bind-Value="addToApplication.ApplicationID" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Role ID</label>
+        <InputNumber class="form-control"
+                     @bind-Value="addToApplication.RoleID" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Created By</label>
+        <InputNumber class="form-control"
+                     @bind-Value="addToApplication.CreatedBy" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">
+        Add to Application
+    </button>
+</EditForm>
+
+@if (!string.IsNullOrEmpty(addToApplicationMessage))
+{
+    <div class="alert alert-success mt-3">
+        @addToApplicationMessage
+    </div>
+}
+
+<hr class="my-4" />
+
+<h4>Change User Role</h4>
+
+<EditForm Model="changeRoleRequest"
+          OnValidSubmit="ChangeUserRoleAsync">
+
+    <div class="mb-3">
+        <label class="form-label">User ID</label>
+        <InputNumber class="form-control"
+                     @bind-Value="roleChangeUserId" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Application ID</label>
+        <InputNumber class="form-control"
+                     @bind-Value="roleChangeApplicationId" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">New Role ID</label>
+        <InputNumber class="form-control"
+                     @bind-Value="changeRoleRequest.RoleID" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Modified By</label>
+        <InputNumber class="form-control"
+                     @bind-Value="changeRoleRequest.ModifiedBy" />
+    </div>
+
+    <button type="submit" class="btn btn-warning">
+        Change Role
+    </button>
+</EditForm>
+
+@if (!string.IsNullOrEmpty(changeRoleMessage))
+{
+    <div class="alert alert-success mt-3">
+        @changeRoleMessage
+    </div>
+}
+
+<hr class="my-4" />
+
+<h4>Application Access</h4>
+
+<div class="mb-3">
+    <label class="form-label">User ID</label>
+    <InputNumber class="form-control"
+                 @bind-Value="accessUserId" />
+</div>
+
+<div class="mb-3">
+    <label class="form-label">Application ID</label>
+    <InputNumber class="form-control"
+                 @bind-Value="accessApplicationId" />
+</div>
+
+<div class="mb-3">
+    <label class="form-label">Modified By</label>
+    <InputNumber class="form-control"
+                 @bind-Value="accessRequest.ModifiedBy" />
+</div>
+
+<div class="mb-3">
+    <button class="btn btn-danger me-2"
+            @onclick="DeactivateAccessAsync">
+        Deactivate Access
+    </button>
+
+    <button class="btn btn-success"
+            @onclick="ReactivateAccessAsync">
+        Reactivate Access
+    </button>
+</div>
+
+@if (!string.IsNullOrEmpty(accessMessage))
+{
+    <div class="alert alert-info">
+        @accessMessage
+    </div>
+}
+
+@code
+{
+    private List<ApplicationUser>? users;
+
+    private ApplicationUser? selectedUser;
+
+    private int applicationId = 2;
+
+    private int userId = 1;
+
+    private string statusMessage = "Showing all users";
+
+    private string? errorMessage;
+
+    private CreateUserRequest newUser = new();
+    private string? createUserMessage;
+
+    private int attachUserId;
+    private AddUserToApplicationRequest addToApplication = new();
+    private string? addToApplicationMessage;
+
+    private int roleChangeUserId;
+    private int roleChangeApplicationId;
+    private ChangeUserRoleRequest changeRoleRequest = new();
+    private string? changeRoleMessage;
+
+    private int accessUserId = 1;
+    private int accessApplicationId = 1;
+    private ModifyApplicationAccessRequest accessRequest = new()
+    {
+        ModifiedBy = 1
+    };
+
+    private string? accessMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAllAsync();
+    }
+
+
+    private async Task LoadByApplicationAsync()
+    {
+        try
+        {
+            errorMessage = null;
+            selectedUser = null;
+
+            users = await ApplicationUserService
+                .GetByApplicationAsync(applicationId);
+
+            statusMessage =
+                $"Showing users for application {applicationId}";
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"Unable to load users: {ex.Message}";
+        }
+    }
+
+
+    private async Task LoadAllAsync()
+    {
+        try
+        {
+            errorMessage = null;
+            selectedUser = null;
+
+            users = await ApplicationUserService.GetAllAsync();
+
+            statusMessage = "Showing all users";
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"Unable to load users: {ex.Message}";
+        }
+    }
+
+
+    private async Task FindUserAsync()
+    {
+        try
+        {
+            errorMessage = null;
+            selectedUser = null;
+
+            selectedUser = await ApplicationUserService
+                .GetByApplicationAndUserAsync(
+                    applicationId,
+                    userId);
+
+            if (selectedUser is null)
+            {
+                errorMessage =
+                    $"No user found for application {applicationId} and user {userId}.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"Unable to find user: {ex.Message}";
+        }
+    }
+
+    private async Task LoadByUserAsync()
+    {
+        try
+        {
+            errorMessage = null;
+            selectedUser = null;
+
+            users = await ApplicationUserService.GetByUserAsync(userId);
+
+            statusMessage = $"Showing applications for user {userId}";
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"Unable to load applications for user: {ex.Message}";
+        }
+    }
+
+    private async Task CreateUserAsync()
+    {
+        try
+        {
+            errorMessage = null;
+            createUserMessage = null;
+
+            var response = await ApplicationUserService.CreateUserAsync(newUser);
+
+            if (response is not null)
+            {
+                createUserMessage =
+                    $"User created successfully. New User ID: {response.UserID}";
+
+                newUser = new CreateUserRequest();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unable to create user: {ex.Message}";
+        }
+    }
+
+    private async Task AddUserToApplicationAsync()
+    {
+        try
+        {
+            errorMessage = null;
+            addToApplicationMessage = null;
+
+            var response =
+                await ApplicationUserService.AddUserToApplicationAsync(
+                    attachUserId,
+                    addToApplication);
+
+            if (response is not null)
+            {
+                addToApplicationMessage = response.Message;
+
+                await LoadAllAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"Unable to add user to application: {ex.Message}";
+        }
+    }
+
+    private async Task ChangeUserRoleAsync()
+    {
+        try
+        {
+            errorMessage = null;
+            changeRoleMessage = null;
+
+            var response =
+                await ApplicationUserService.ChangeUserRoleAsync(
+                    roleChangeUserId,
+                    roleChangeApplicationId,
+                    changeRoleRequest);
+
+            if (response is not null)
+            {
+                changeRoleMessage = response.Message;
+
+                await LoadAllAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"Unable to change user role: {ex.Message}";
+        }
+    }
+    
+    private async Task DeactivateAccessAsync()
+    {
+        try
+        {
+            errorMessage = null;
+            accessMessage = null;
+
+            var response =
+                await ApplicationUserService.DeactivateApplicationAccessAsync(
+                    accessUserId,
+                    accessApplicationId,
+                    accessRequest);
+
+            if (response is not null)
+            {
+                accessMessage = response.Message;
+                await LoadAllAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"Unable to deactivate application access: {ex.Message}";
+        }
+    }
+
+    private async Task ReactivateAccessAsync()
+    {
+        try
+        {
+            errorMessage = null;
+            accessMessage = null;
+
+            var response =
+                await ApplicationUserService.ReactivateApplicationAccessAsync(
+                    accessUserId,
+                    accessApplicationId,
+                    accessRequest);
+
+            if (response is not null)
+            {
+                accessMessage = response.Message;
+                await LoadAllAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"Unable to reactivate application access: {ex.Message}";
+        }
+    }
+}

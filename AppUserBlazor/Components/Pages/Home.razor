@@ -1,0 +1,145 @@
+﻿@page "/"
+
+<PageTitle>App User API</PageTitle>
+
+<h1>App User API</h1>
+
+<p>
+    This Blazor application is used to exercise and demonstrate the
+    App User API endpoints.
+</p>
+
+<hr />
+
+<h3>GET Endpoints</h3>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Method</th>
+            <th>Endpoint</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>GET</td>
+            <td><code>/applicationusers</code></td>
+            <td>Returns all application/user relationships.</td>
+        </tr>
+
+        <tr>
+            <td>GET</td>
+            <td><code>/applicationusers/application/{applicationId}</code></td>
+            <td>Returns all users assigned to a specific application.</td>
+        </tr>
+
+        <tr>
+            <td>GET</td>
+            <td>
+                <code>
+                    /applicationusers/application/{applicationId}/user/{userId}
+                </code>
+            </td>
+            <td>
+                Returns one specific user/application relationship.
+            </td>
+        </tr>
+
+        <tr>
+            <td>GET</td>
+            <td><code>/applicationusers/user/{userId}</code></td>
+            <td>
+                Returns all application assignments for a specific user.
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<hr />
+
+<h3>POST Endpoints</h3>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Method</th>
+            <th>Endpoint</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>POST</td>
+            <td><code>/users</code></td>
+            <td>Creates a new user.</td>
+        </tr>
+
+        <tr>
+            <td>POST</td>
+            <td><code>/users/{userId}/applications</code></td>
+            <td>
+                Adds an existing user to an application with a specified role.
+            </td>
+        </tr>
+
+        <tr>
+            <td>POST</td>
+            <td>
+                <code>
+                    /users/{userId}/applications/{applicationId}/deactivate
+                </code>
+            </td>
+            <td>
+                Deactivates the user's access to an application.
+            </td>
+        </tr>
+
+        <tr>
+            <td>POST</td>
+            <td>
+                <code>
+                    /users/{userId}/applications/{applicationId}/reactivate
+                </code>
+            </td>
+            <td>
+                Reactivates the user's access to an application.
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<hr />
+
+<h3>PUT Endpoints</h3>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Method</th>
+            <th>Endpoint</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>PUT</td>
+            <td>
+                <code>
+                    /users/{userId}/applications/{applicationId}/role
+                </code>
+            </td>
+            <td>
+                Changes the user's role for a specific application.
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<hr />
+
+<h3>Current API Base Address</h3>
+
+<p>
+    <code>https://localhost:7098</code>
+</p>
