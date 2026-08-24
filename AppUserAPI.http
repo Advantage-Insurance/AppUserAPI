@@ -1,0 +1,109 @@
+@AppUserAPI_HostAddress = https://localhost:7098
+
+
+###
+
+GET {{AppUserAPI_HostAddress}}/applicationusers
+
+###
+
+@applicationId=0
+GET {{AppUserAPI_HostAddress}}/applicationusers/application/2
+
+###
+
+GET {{AppUserAPI_HostAddress}}/applicationusers
+
+###
+
+@userId=0
+GET {{AppUserAPI_HostAddress}}/applicationusers/application/2/user/1
+
+###
+
+GET {{AppUserAPI_HostAddress}}/applicationusers/user/1
+
+###
+
+POST {{AppUserAPI_HostAddress}}/users
+Content-Type: application/json
+
+{
+  "userName": "mister.pink",
+  "email": "mister.pink@tarrantino.com",
+  "passwordHash": null,
+  "firstName": "Mister",
+  "lastName": "Pink",
+  "createdBy": 1
+}
+
+###
+
+POST {{AppUserAPI_HostAddress}}/users/6/applications
+Content-Type: application/json
+
+{
+  "applicationID": 2,
+  "roleID": 7,
+  "createdBy": 1
+}
+
+###
+
+POST {{AppUserAPI_HostAddress}}/users/4/reactivate
+Content-Type: application/json
+
+{
+  "modifiedBy": 1
+}
+
+###
+
+POST {{AppUserAPI_HostAddress}}/users/5/applications/2/deactivate
+Content-Type: application/json
+{
+  "modifiedBy": 1
+}
+
+###
+
+POST {{AppUserAPI_HostAddress}}/users/1/applications/1/reactivate
+Content-Type: application/json
+
+{
+  "modifiedBy": 1
+}
+
+###
+
+PUT {{AppUserAPI_HostAddress}}/users/6/applications/2/role
+Content-Type: application/json
+
+{
+  "roleID": 6,
+  "modifiedBy": 1
+}
+
+###
+
+GET {{AppUserAPI_HostAddress}}/applicationusers/user/4
+
+###
+
+POST {{AppUserAPI_HostAddress}}/users/1/applications/1/deactivate
+Content-Type: application/json
+
+{
+   "modifiedBy": 1
+}
+
+###
+
+POST {{AppUserAPI_HostAddress}}/users/{{userId}}/applications/{{applicationId}}/reactivate
+Content-Type: application/json
+
+{
+  //ModifyApplicationAccessRequest
+}
+
+###
