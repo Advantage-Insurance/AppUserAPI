@@ -186,5 +186,49 @@ namespace AppUserBlazor.Services
                 $"/me/applications/{applicationId}");
         }
 
+        public async Task<CreateApplicationRoleResponse?> CreateApplicationRoleAsync(int applicationId, CreateApplicationRoleRequest request)
+        {
+            var client = _httpClientFactory.CreateClient("AppUserAPI");
+
+            using var response = await client.PostAsJsonAsync(
+                $"/applications/{applicationId}/roles",
+                request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var message = "Unable to create the application role.";
+
+                try
+                {
+                    using var document =
+                        System.Text.Json.JsonDocument.Parse(
+                            await response.Content.ReadAsStringAsync());
+
+                    foreach (var property in document.RootElement.EnumerateObject())
+                    {
+                        if ((property.Name.Equals(
+                                "message", StringComparison.OrdinalIgnoreCase)
+                             || property.Name.Equals(
+                                "detail", StringComparison.OrdinalIgnoreCase))
+                            && property.Value.ValueKind ==
+                                System.Text.Json.JsonValueKind.String)
+                        {
+                            message = property.Value.GetString() ?? message;
+                            break;
+                        }
+                    }
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    // Use the default message for a non-JSON error response.
+                }
+
+                throw new InvalidOperationException(message);
+            }
+
+            return await response.Content
+                .ReadFromJsonAsync<CreateApplicationRoleResponse>();
+        }
+
     }
 }

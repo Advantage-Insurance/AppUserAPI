@@ -164,6 +164,12 @@ app.MapPut(
     ChangeUserApplicationRole)
     .RequireAuthorization();
 
+// POST /applications/2/roles
+applications.MapPost(
+    "/{applicationId}/roles",
+    CreateApplicationRole)
+    .RequireAuthorization();
+
 app.Run();
 
 
@@ -1302,6 +1308,118 @@ static async Task<IResult> ChangeUserApplicationRole(
 
             _ => Results.Problem(
                 $"Unexpected return code from Security.usp_ChangeUserApplicationRole: {returnCode}")
+        };
+    }
+    finally
+    {
+        await connection.CloseAsync();
+    }
+}
+
+static async Task<IResult> CreateApplicationRole(
+    int applicationId,
+    CreateApplicationRoleRequest request,
+    HttpContext context,
+    ICurrentUserResolver currentUserResolver,
+    AppDbContext db,
+    CancellationToken cancellationToken)
+{
+    var currentUser = await currentUserResolver.GetCurrentUserAsync(
+        context.User,
+        cancellationToken);
+
+    if (currentUser is null)
+    {
+        return Results.Problem(
+            detail:
+                "The authenticated user is not registered in the User Management system.",
+            statusCode: StatusCodes.Status403Forbidden);
+    }
+
+    var connection = db.Database.GetDbConnection();
+
+    await connection.OpenAsync(cancellationToken);
+
+    try
+    {
+        await using var command = connection.CreateCommand();
+
+        command.CommandText = "Security.usp_CreateApplicationRole";
+        command.CommandType = CommandType.StoredProcedure;
+
+        command.Parameters.Add(
+            new SqlParameter("@ApplicationID", SqlDbType.Int)
+            {
+                Value = applicationId
+            });
+
+        command.Parameters.Add(
+            new SqlParameter("@RoleName", SqlDbType.NVarChar, -1)
+            {
+                Value = (object?)request.RoleName ?? DBNull.Value
+            });
+
+        command.Parameters.Add(
+            new SqlParameter("@Description", SqlDbType.NVarChar, -1)
+            {
+                Value = (object?)request.Description ?? DBNull.Value
+            });
+
+        // Audit identity comes from Windows authentication.
+        command.Parameters.Add(
+            new SqlParameter("@CreatedBy", SqlDbType.Int)
+            {
+                Value = currentUser.UserID
+            });
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return Results.Problem(
+                "Security.usp_CreateApplicationRole did not return a result.");
+        }
+
+        var returnCode =
+            reader.GetInt32(reader.GetOrdinal("ReturnCode"));
+
+        var roleIdOrdinal = reader.GetOrdinal("RoleID");
+
+        int? roleId = reader.IsDBNull(roleIdOrdinal)
+            ? null
+            : reader.GetInt32(roleIdOrdinal);
+
+        var message =
+            reader.GetString(reader.GetOrdinal("Message"));
+
+        var result = new
+        {
+            ReturnCode = returnCode,
+            RoleID = roleId,
+            ApplicationID = applicationId,
+            Message = message
+        };
+
+        return returnCode switch
+        {
+            0 => Results.Created(
+                $"/applications/{applicationId}/roles",
+                result),
+
+            1 => Results.BadRequest(result),
+            2 => Results.BadRequest(result),
+            3 => Results.BadRequest(result),
+            4 => Results.BadRequest(result),
+            5 => Results.Conflict(result),
+
+            6 => Results.Problem(
+                detail: message,
+                statusCode: StatusCodes.Status403Forbidden),
+
+            _ => Results.Problem(
+                detail: "Unable to create the application role.",
+                statusCode: StatusCodes.Status500InternalServerError)
         };
     }
     finally

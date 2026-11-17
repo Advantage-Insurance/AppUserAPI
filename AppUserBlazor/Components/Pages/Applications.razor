@@ -1,0 +1,327 @@
+﻿@page "/applications"
+
+@using AppUserBlazor.Models
+@using AppUserBlazor.Services
+@inject ApplicationUserService ApplicationUserService
+
+<div class="mb-4">
+    <h2 class="mb-1">Application Management</h2>
+    <p class="text-muted mb-0">
+        Browse applications and their available roles.
+    </p>
+</div>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        @errorMessage
+    </div>
+}
+
+@if (isLoading)
+{
+    <p>Loading applications...</p>
+}
+else
+{
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Applications</h5>
+        </div>
+
+        <div class="card-body">
+            @if (applications.Count == 0)
+            {
+                <p class="text-muted mb-0">No applications found.</p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Application</th>
+                                <th>Code</th>
+                                <th>Description</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var application in applications)
+                            {
+                                <tr>
+                                    <td>@application.ApplicationName</td>
+                                    <td>@application.ApplicationCode</td>
+                                    <td>@application.Description</td>
+                                    <td>
+                                        @(application.IsActive ? "Active" : "Inactive")
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary"
+                                                disabled="@(isLoadingRoles || isSavingRole)"
+                                                @onclick="() => ManageAsync(application)">
+                                            Manage
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@if (selectedApplication is not null)
+{
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">
+                @selectedApplication.ApplicationName — Roles
+            </h5>
+        </div>
+
+        <div class="card-body">
+            @if (!string.IsNullOrEmpty(roleSuccessMessage))
+            {
+                <div class="alert alert-success" role="status">
+                    @roleSuccessMessage
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(roleErrorMessage))
+            {
+                <div class="alert alert-danger" role="alert">
+                    @roleErrorMessage
+                </div>
+            }
+
+            @if (!showAddRole)
+            {
+                <button class="btn btn-primary mb-3"
+                        disabled="@(isLoadingRoles || !selectedApplication.IsActive)"
+                        @onclick="BeginAddRole">
+                    Add Role
+                </button>
+            }
+            else
+            {
+                <div class="border rounded p-3 mb-3">
+                    <h6>Add Role — @selectedApplication.ApplicationName</h6>
+
+                    <EditForm Model="@newRole" OnValidSubmit="SaveRoleAsync">
+                        <DataAnnotationsValidator />
+
+                        <fieldset disabled="@isSavingRole">
+                            <div class="mb-3">
+                                <label for="new-role-name" class="form-label">
+                                    Role name
+                                </label>
+                                <InputText id="new-role-name"
+                                           class="form-control"
+                                           maxlength="50"
+                                           @bind-Value="newRole.RoleName" />
+                                <ValidationMessage For="@(() => newRole.RoleName)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="new-role-description" class="form-label">
+                                    Description
+                                </label>
+                                <InputTextArea id="new-role-description"
+                                               class="form-control"
+                                               maxlength="255"
+                                               rows="2"
+                                               @bind-Value="newRole.Description" />
+                                <ValidationMessage For="@(() => newRole.Description)" />
+                            </div>
+
+                            <button type="submit" class="btn btn-success">
+                                @(isSavingRole ? "Saving..." : "Save Role")
+                            </button>
+
+                            <button type="button"
+                                    class="btn btn-secondary ms-2"
+                                    @onclick="CancelAddRole">
+                                Cancel
+                            </button>
+                        </fieldset>
+                    </EditForm>
+                </div>
+            }
+            @if (isLoadingRoles)
+            {
+                <p>Loading roles...</p>
+            }
+            else if (roles.Count == 0)
+            {
+                <p class="text-muted mb-0">
+                    No roles defined for this application.
+                </p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead>
+                            <tr>
+                                <th>Role</th>
+                                <th>Description</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var role in roles)
+                            {
+                                <tr>
+                                    <td>@role.RoleName</td>
+                                    <td>@role.Description</td>
+                                    <td>
+                                        @(role.IsActive ? "Active" : "Inactive")
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private List<ApplicationLookup> applications = new();
+    private List<RoleLookup> roles = new();
+    private ApplicationLookup? selectedApplication;
+    private string? errorMessage;
+    private bool isLoading = true;
+    private bool isLoadingRoles;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            applications =
+                await ApplicationUserService.GetApplicationsAsync()
+                ?? new List<ApplicationLookup>();
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load applications. Please try again.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ManageAsync(ApplicationLookup application)
+    {
+        errorMessage = null;
+        selectedApplication = application;
+        roles.Clear();
+        isLoadingRoles = true;
+        showAddRole = false;
+        newRole = new();
+        roleSuccessMessage = null;
+        roleErrorMessage = null;
+
+        try
+        {
+            roles =
+                await ApplicationUserService.GetApplicationRolesAsync(
+                    application.ApplicationID)
+                ?? new List<RoleLookup>();
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load roles. Please select Manage again.";
+            selectedApplication = null;
+        }
+        finally
+        {
+            isLoadingRoles = false;
+        }
+    }
+
+    private CreateApplicationRoleRequest newRole = new();
+    private bool showAddRole;
+    private bool isSavingRole;
+    private string? roleSuccessMessage;
+    private string? roleErrorMessage;
+
+    private void BeginAddRole()
+    {
+        newRole = new();
+        roleSuccessMessage = null;
+        roleErrorMessage = null;
+        showAddRole = true;
+    }
+
+    private void CancelAddRole()
+    {
+        showAddRole = false;
+        newRole = new();
+        roleErrorMessage = null;
+    }
+
+    private async Task SaveRoleAsync()
+    {
+        if (selectedApplication is null || isSavingRole)
+            return;
+
+        var applicationId = selectedApplication.ApplicationID;
+
+        isSavingRole = true;
+        roleSuccessMessage = null;
+        roleErrorMessage = null;
+
+        try
+        {
+            var result =
+                await ApplicationUserService.CreateApplicationRoleAsync(
+                    applicationId, newRole);
+
+            if (result is null || result.ReturnCode != 0)
+            {
+                roleErrorMessage = result?.Message
+                    ?? "Unable to confirm role creation.";
+                return;
+            }
+
+            showAddRole = false;
+            newRole = new();
+            roleSuccessMessage = result.Message;
+
+            try
+            {
+                roles =
+                    await ApplicationUserService.GetApplicationRolesAsync(
+                        applicationId)
+                    ?? new List<RoleLookup>();
+            }
+            catch (Exception)
+            {
+                roleErrorMessage =
+                    "The role was created, but the list could not be refreshed. "
+                    + "Select Manage again to reload it.";
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            roleErrorMessage = ex.Message;
+        }
+        catch (Exception)
+        {
+            roleErrorMessage =
+                "Unable to confirm whether the role was created. "
+                + "Reload the role list before trying again.";
+        }
+        finally
+        {
+            isSavingRole = false;
+        }
+    }
+}

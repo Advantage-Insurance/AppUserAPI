@@ -131,3 +131,15 @@
     margin-top: 0.1rem;
     overflow-wrap: anywhere;
 }
+
+.nav-item ::deep a {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.navigation-icon {
+    width: 1.15rem;
+    height: 1.15rem;
+    flex: 0 0 1.15rem;
+}
