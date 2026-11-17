@@ -1,10 +1,26 @@
-using Microsoft.EntityFrameworkCore;
+using AppUserAPI.Models;
+using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using System.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Connect to SQL Server instead of the in-memory Todo database.
+// ---------------------------------------------------------
+// Configure Windows Authentication
+// ---------------------------------------------------------
+builder.Services
+    .AddAuthentication(NegotiateDefaults.AuthenticationScheme)
+    .AddNegotiate();
+
+builder.Services.AddAuthorization();
+
+// ---------------------------------------------------------
+// Register current-user resolver
+// ---------------------------------------------------------
+builder.Services.AddScoped<ICurrentUserResolver, CurrentUserResolver>();
+
+// Connect to SQL Server.
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("AVI_COMMON_Database")));
@@ -18,11 +34,74 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+// ---------------------------------------------------------
+// Enable authentication and authorization middleware
+// ---------------------------------------------------------
+app.UseAuthentication();
+app.UseAuthorization();
+
+
+// ---------------------------------------------------------
+// Route groups
+// ---------------------------------------------------------
+
 // Create a route group for application users.
 var applicationUsers = app.MapGroup("/applicationusers");
 
+// Create a route group for applications.
+var applications = app.MapGroup("/applications");
+
+// Create a route group for authentication/current-user endpoints.
+var auth = app.MapGroup("/auth");
+
+// Create a route group for the current authenticated user.
+var me = app.MapGroup("/me")
+    .RequireAuthorization();
+
+
+// ---------------------------------------------------------
+// Authentication endpoints
+// ---------------------------------------------------------
+
+// GET /auth/whoami
+auth.MapGet(
+    "/whoami",
+    GetCurrentUser)
+    .RequireAuthorization();
+
+// GET /auth/currentuser
+auth.MapGet(
+    "/currentuser",
+    GetCurrentSecurityUser)
+    .RequireAuthorization();
+
+// GET /me/applications/5
+me.MapGet(
+    "/applications/{applicationId}",
+    GetCurrentUserApplication);
+
+// ---------------------------------------------------------
+// Application endpoints
+// ---------------------------------------------------------
+
+// GET /applications
+applications.MapGet(
+    "/",
+    GetApplications);
+
+// GET /applications/3/roles
+applications.MapGet(
+    "/{applicationId}/roles",
+    GetApplicationRoles);
+
+// ---------------------------------------------------------
+// Application-user endpoints
+// ---------------------------------------------------------
+
 // GET /applicationusers
-applicationUsers.MapGet("/", GetAllApplicationUsers);
+applicationUsers.MapGet(
+    "/",
+    GetAllApplicationUsers);
 
 // GET /applicationusers/application/5
 applicationUsers.MapGet(
@@ -39,31 +118,210 @@ applicationUsers.MapGet(
     "/user/{userId}",
     GetApplicationUserByUserId);
 
+
+// ---------------------------------------------------------
+// User-management endpoints
+// ---------------------------------------------------------
+
+// GET /users
+app.MapGet(
+    "/users",
+    GetUsers);
+
 // POST /users
-app.MapPost("/users", CreateUser);
+app.MapPost(
+    "/users",
+    CreateUser)
+    .RequireAuthorization();
 
 // POST /users/10/reactivate
-app.MapPost("/users/{userId}/reactivate", ReactivateUser);
+app.MapPost(
+    "/users/{userId}/reactivate",
+    ReactivateUser)
+    .RequireAuthorization();
 
 // POST /users/10/applications
-app.MapPost("/users/{userId}/applications", AddUserToApplication);
+app.MapPost(
+    "/users/{userId}/applications",
+    AddUserToApplication)
+    .RequireAuthorization();
 
 // POST /users/10/applications/5/deactivate
 app.MapPost(
     "/users/{userId}/applications/{applicationId}/deactivate",
-    DeactivateUserFromApplication);
+    DeactivateUserFromApplication)
+    .RequireAuthorization();
 
 // POST /users/10/applications/5/reactivate
 app.MapPost(
     "/users/{userId}/applications/{applicationId}/reactivate",
-    ReactivateUserFromApplication);
+    ReactivateUserFromApplication)
+    .RequireAuthorization();
 
 // PUT /users/10/applications/5/role
 app.MapPut(
     "/users/{userId}/applications/{applicationId}/role",
-    ChangeUserApplicationRole);
+    ChangeUserApplicationRole)
+    .RequireAuthorization();
 
 app.Run();
+
+
+// ---------------------------------------------------------
+// GET the currently authenticated Windows user
+// Example:
+// GET /auth/whoami
+//
+// This endpoint shows the raw authenticated identity
+// supplied by Windows Authentication.
+// ---------------------------------------------------------
+static IResult GetCurrentUser(HttpContext context)
+{
+    var user = context.User;
+
+    return TypedResults.Ok(new
+    {
+        IsAuthenticated = user.Identity?.IsAuthenticated ?? false,
+        AuthenticationType = user.Identity?.AuthenticationType,
+        Name = user.Identity?.Name,
+        Claims = user.Claims.Select(c => new
+        {
+            c.Type,
+            c.Value
+        })
+    });
+}
+
+
+// ---------------------------------------------------------
+// GET the currently authenticated user resolved against
+// Security.Users
+// Example:
+// GET /auth/currentuser
+//
+// Windows identity:
+// AD\Domingo.DeJesus
+//
+// resolves to:
+//
+// Security.Users.UserName = domingo.dejesus
+// ---------------------------------------------------------
+static async Task<IResult> GetCurrentSecurityUser(
+    HttpContext context,
+    ICurrentUserResolver currentUserResolver,
+    CancellationToken cancellationToken)
+{
+    var user = await currentUserResolver.GetCurrentUserAsync(
+        context.User,
+        cancellationToken);
+
+    return user is not null
+        ? TypedResults.Ok(user)
+        : TypedResults.NotFound();
+}
+
+// ---------------------------------------------------------
+// GET the current authenticated user's access to one
+// application
+// Example:
+// GET /me/applications/3
+//
+// Resolves the authenticated Windows user against
+// Security.Users and determines whether the user has
+// active access to the requested application.
+// ---------------------------------------------------------
+static async Task<IResult> GetCurrentUserApplication(
+    int applicationId,
+    HttpContext context,
+    ICurrentUserResolver currentUserResolver,
+    AppDbContext db,
+    CancellationToken cancellationToken)
+{
+    var currentUser = await currentUserResolver.GetCurrentUserAsync(
+        context.User,
+        cancellationToken);
+
+    if (currentUser is null)
+    {
+        return Results.Problem(
+            detail: "The authenticated Windows user is not registered in the User Management system.",
+            statusCode: StatusCodes.Status403Forbidden);
+    }
+
+    var applicationUser = await db.ApplicationUsers
+        .AsNoTracking()
+        .FirstOrDefaultAsync(
+            x =>
+                x.ApplicationID == applicationId &&
+                x.UserID == currentUser.UserID,
+            cancellationToken);
+
+    if (applicationUser is null)
+    {
+        return TypedResults.Ok(
+            new CurrentUserApplicationAccess
+            {
+                UserID = currentUser.UserID,
+                UserName = currentUser.UserName,
+                ApplicationID = applicationId,
+                HasAccess = false,
+                IsUserActive = currentUser.IsActive,
+                IsApplicationAccessActive = false,
+                RoleID = null,
+                RoleName = null
+            });
+    }
+
+    var hasAccess =
+        applicationUser.IsUserActive &&
+        applicationUser.IsApplicationAccessActive;
+
+    return TypedResults.Ok(
+        new CurrentUserApplicationAccess
+        {
+            UserID = applicationUser.UserID,
+            UserName = applicationUser.UserName,
+            ApplicationID = applicationUser.ApplicationID,
+            ApplicationCode = applicationUser.ApplicationCode,
+            HasAccess = hasAccess,
+            IsUserActive = applicationUser.IsUserActive,
+            IsApplicationAccessActive =
+                applicationUser.IsApplicationAccessActive,
+            RoleID = applicationUser.RoleID,
+            RoleName = applicationUser.RoleName
+        });
+}
+
+// ---------------------------------------------------------
+// GET all applications
+// ---------------------------------------------------------
+static async Task<IResult> GetApplications(AppDbContext db)
+{
+    var applications = await db.Applications
+        .AsNoTracking()
+        .OrderBy(x => x.ApplicationName)
+        .ToListAsync();
+
+    return TypedResults.Ok(applications);
+}
+
+// ---------------------------------------------------------
+// GET all roles for one application
+// Example:
+// GET /applications/3/roles
+// ---------------------------------------------------------
+static async Task<IResult> GetApplicationRoles(
+    int applicationId,
+    AppDbContext db)
+{
+    var roles = await db.Roles
+        .AsNoTracking()
+        .Where(x => x.ApplicationID == applicationId)
+        .OrderBy(x => x.RoleName)
+        .ToListAsync();
+
+    return TypedResults.Ok(roles);
+}
 
 
 // ---------------------------------------------------------
@@ -139,6 +397,20 @@ static async Task<IResult> GetApplicationUserByUserId(
     return TypedResults.Ok(users);
 }
 
+// ---------------------------------------------------------
+// GET all users
+// ---------------------------------------------------------
+static async Task<IResult> GetUsers(AppDbContext db)
+{
+    var users = await db.Users
+        .AsNoTracking()
+        .OrderBy(x => x.LastName)
+        .ThenBy(x => x.FirstName)
+        .ThenBy(x => x.UserName)
+        .ToListAsync();
+
+    return TypedResults.Ok(users);
+}
 
 // ---------------------------------------------------------
 // POST create a global user
@@ -148,8 +420,22 @@ static async Task<IResult> GetApplicationUserByUserId(
 // ---------------------------------------------------------
 static async Task<IResult> CreateUser(
     CreateUserRequest request,
-    AppDbContext db)
+    HttpContext context,
+    ICurrentUserResolver currentUserResolver,
+    AppDbContext db,
+    CancellationToken cancellationToken)
 {
+    var currentUser = await currentUserResolver.GetCurrentUserAsync(
+        context.User,
+        cancellationToken);
+
+    if (currentUser is null)
+    {
+        return Results.Problem(
+            detail: "The authenticated user is not registered in the User Management system.",
+            statusCode: StatusCodes.Status403Forbidden);
+    }
+
     var connection = db.Database.GetDbConnection();
     await connection.OpenAsync();
 
@@ -159,34 +445,51 @@ static async Task<IResult> CreateUser(
         command.CommandText = "Security.usp_CreateUser";
         command.CommandType = CommandType.StoredProcedure;
 
-        command.Parameters.Add(new SqlParameter("@UserName", SqlDbType.NVarChar, 150)
+        command.Parameters.Add(new SqlParameter(
+            "@UserName",
+            SqlDbType.NVarChar,
+            150)
         {
             Value = request.UserName
         });
 
-        command.Parameters.Add(new SqlParameter("@Email", SqlDbType.NVarChar, 255)
+        command.Parameters.Add(new SqlParameter(
+            "@Email",
+            SqlDbType.NVarChar,
+            255)
         {
             Value = request.Email
         });
 
-        command.Parameters.Add(new SqlParameter("@PasswordHash", SqlDbType.NVarChar, 100)
+        command.Parameters.Add(new SqlParameter(
+            "@PasswordHash",
+            SqlDbType.NVarChar,
+            100)
         {
             Value = (object?)request.PasswordHash ?? DBNull.Value
         });
 
-        command.Parameters.Add(new SqlParameter("@FirstName", SqlDbType.NVarChar, 100)
+        command.Parameters.Add(new SqlParameter(
+            "@FirstName",
+            SqlDbType.NVarChar,
+            100)
         {
             Value = request.FirstName
         });
 
-        command.Parameters.Add(new SqlParameter("@LastName", SqlDbType.NVarChar, 100)
+        command.Parameters.Add(new SqlParameter(
+            "@LastName",
+            SqlDbType.NVarChar,
+            100)
         {
             Value = request.LastName
         });
 
-        command.Parameters.Add(new SqlParameter("@CreatedBy", SqlDbType.Int)
+        command.Parameters.Add(new SqlParameter(
+            "@CreatedBy",
+            SqlDbType.Int)
         {
-            Value = (object?)request.CreatedBy ?? DBNull.Value
+            Value = currentUser.UserID
         });
 
         await using var reader = await command.ExecuteReaderAsync();
@@ -197,14 +500,18 @@ static async Task<IResult> CreateUser(
                 "Security.usp_CreateUser did not return a result.");
         }
 
-        var returnCode = reader.GetInt32(reader.GetOrdinal("ReturnCode"));
+        var returnCode =
+            reader.GetInt32(reader.GetOrdinal("ReturnCode"));
 
         int? userId = null;
-        var userIdOrdinal = reader.GetOrdinal("UserID");
+
+        var userIdOrdinal =
+            reader.GetOrdinal("UserID");
 
         if (!reader.IsDBNull(userIdOrdinal))
         {
-            userId = reader.GetInt32(userIdOrdinal);
+            userId =
+                reader.GetInt32(userIdOrdinal);
         }
 
         return returnCode switch
@@ -256,9 +563,20 @@ static async Task<IResult> CreateUser(
                 RecommendedAction = "ReactivateUser"
             }),
 
+            5 => Results.BadRequest(new
+            {
+                ReturnCode = returnCode,
+                UserID = userId,
+                Status = "ValidationFailed",
+                Message = "User name, email, first name, and last name are required.",
+                RecommendedAction = "CorrectInput"
+            }),
+
             -1 => Results.Problem(
-                detail: "An unexpected SQL Server error occurred while creating the user.",
-                statusCode: StatusCodes.Status500InternalServerError),
+                detail:
+                    "An unexpected SQL Server error occurred while creating the user.",
+                statusCode:
+                    StatusCodes.Status500InternalServerError),
 
             _ => Results.Problem(
                 $"Unexpected return code from Security.usp_CreateUser: {returnCode}")
@@ -279,29 +597,49 @@ static async Task<IResult> CreateUser(
 // ---------------------------------------------------------
 static async Task<IResult> ReactivateUser(
     int userId,
-    ReactivateUserRequest request,
-    AppDbContext db)
+    HttpContext context,
+    ICurrentUserResolver currentUserResolver,
+    AppDbContext db,
+    CancellationToken cancellationToken)
 {
+    var currentUser = await currentUserResolver.GetCurrentUserAsync(
+        context.User,
+        cancellationToken);
+
+    if (currentUser is null)
+    {
+        return Results.Problem(
+            detail: "The authenticated user is not registered in the User Management system.",
+            statusCode: StatusCodes.Status403Forbidden);
+    }
+
     var connection = db.Database.GetDbConnection();
     await connection.OpenAsync();
 
     try
     {
         await using var command = connection.CreateCommand();
-        command.CommandText = "Security.usp_ReactivateUser";
-        command.CommandType = CommandType.StoredProcedure;
 
-        command.Parameters.Add(new SqlParameter("@UserID", SqlDbType.Int)
-        {
-            Value = userId
-        });
+        command.CommandText =
+            "Security.usp_ReactivateUser";
 
-        command.Parameters.Add(new SqlParameter("@ModifiedBy", SqlDbType.Int)
-        {
-            Value = request.ModifiedBy
-        });
+        command.CommandType =
+            CommandType.StoredProcedure;
 
-        await using var reader = await command.ExecuteReaderAsync();
+        command.Parameters.Add(
+            new SqlParameter("@UserID", SqlDbType.Int)
+            {
+                Value = userId
+            });
+
+        command.Parameters.Add(
+            new SqlParameter("@ModifiedBy", SqlDbType.Int)
+            {
+                Value = currentUser.UserID
+            });
+
+        await using var reader =
+            await command.ExecuteReaderAsync();
 
         if (!await reader.ReadAsync())
         {
@@ -309,7 +647,8 @@ static async Task<IResult> ReactivateUser(
                 "Security.usp_ReactivateUser did not return a result.");
         }
 
-        var returnCode = reader.GetInt32(reader.GetOrdinal("ReturnCode"));
+        var returnCode =
+            reader.GetInt32(reader.GetOrdinal("ReturnCode"));
 
         return returnCode switch
         {
@@ -350,8 +689,10 @@ static async Task<IResult> ReactivateUser(
             }),
 
             -1 => Results.Problem(
-                detail: "An unexpected SQL Server error occurred while reactivating the user.",
-                statusCode: StatusCodes.Status500InternalServerError),
+                detail:
+                    "An unexpected SQL Server error occurred while reactivating the user.",
+                statusCode:
+                    StatusCodes.Status500InternalServerError),
 
             _ => Results.Problem(
                 $"Unexpected return code from Security.usp_ReactivateUser: {returnCode}")
@@ -373,38 +714,61 @@ static async Task<IResult> ReactivateUser(
 static async Task<IResult> AddUserToApplication(
     int userId,
     AddUserToApplicationRequest request,
-    AppDbContext db)
+    HttpContext context,
+    ICurrentUserResolver currentUserResolver,
+    AppDbContext db,
+    CancellationToken cancellationToken)
 {
+    var currentUser = await currentUserResolver.GetCurrentUserAsync(
+        context.User,
+        cancellationToken);
+
+    if (currentUser is null)
+    {
+        return Results.Problem(
+            detail: "The authenticated user is not registered in the User Management system.",
+            statusCode: StatusCodes.Status403Forbidden);
+    }
+
     var connection = db.Database.GetDbConnection();
     await connection.OpenAsync();
 
     try
     {
         await using var command = connection.CreateCommand();
-        command.CommandText = "Security.usp_AddUserToApplication";
-        command.CommandType = CommandType.StoredProcedure;
 
-        command.Parameters.Add(new SqlParameter("@UserID", SqlDbType.Int)
-        {
-            Value = userId
-        });
+        command.CommandText =
+            "Security.usp_AddUserToApplication";
 
-        command.Parameters.Add(new SqlParameter("@ApplicationID", SqlDbType.Int)
-        {
-            Value = request.ApplicationID
-        });
+        command.CommandType =
+            CommandType.StoredProcedure;
 
-        command.Parameters.Add(new SqlParameter("@RoleID", SqlDbType.Int)
-        {
-            Value = request.RoleID
-        });
+        command.Parameters.Add(
+            new SqlParameter("@UserID", SqlDbType.Int)
+            {
+                Value = userId
+            });
 
-        command.Parameters.Add(new SqlParameter("@CreatedBy", SqlDbType.Int)
-        {
-            Value = request.CreatedBy
-        });
+        command.Parameters.Add(
+            new SqlParameter("@ApplicationID", SqlDbType.Int)
+            {
+                Value = request.ApplicationID
+            });
 
-        await using var reader = await command.ExecuteReaderAsync();
+        command.Parameters.Add(
+            new SqlParameter("@RoleID", SqlDbType.Int)
+            {
+                Value = request.RoleID
+            });
+
+        command.Parameters.Add(
+            new SqlParameter("@CreatedBy", SqlDbType.Int)
+            {
+                Value = currentUser.UserID
+            });
+
+        await using var reader =
+            await command.ExecuteReaderAsync();
 
         if (!await reader.ReadAsync())
         {
@@ -412,7 +776,8 @@ static async Task<IResult> AddUserToApplication(
                 "Security.usp_AddUserToApplication did not return a result.");
         }
 
-        var returnCode = reader.GetInt32(reader.GetOrdinal("ReturnCode"));
+        var returnCode =
+            reader.GetInt32(reader.GetOrdinal("ReturnCode"));
 
         return returnCode switch
         {
@@ -422,7 +787,8 @@ static async Task<IResult> AddUserToApplication(
                 UserID = userId,
                 ApplicationID = request.ApplicationID,
                 RoleID = request.RoleID,
-                Message = "User successfully added to the application."
+                Message =
+                    "User successfully added to the application."
             }),
 
             1 => Results.Conflict(new
@@ -430,7 +796,8 @@ static async Task<IResult> AddUserToApplication(
                 ReturnCode = returnCode,
                 UserID = userId,
                 ApplicationID = request.ApplicationID,
-                Message = "User already has active access to the application."
+                Message =
+                    "User already has active access to the application."
             }),
 
             2 => Results.Ok(new
@@ -439,7 +806,8 @@ static async Task<IResult> AddUserToApplication(
                 UserID = userId,
                 ApplicationID = request.ApplicationID,
                 RoleID = request.RoleID,
-                Message = "User application access was reactivated successfully."
+                Message =
+                    "User application access was reactivated successfully."
             }),
 
             3 => Results.NotFound(new
@@ -453,14 +821,16 @@ static async Task<IResult> AddUserToApplication(
             {
                 ReturnCode = returnCode,
                 UserID = userId,
-                Message = "User is inactive and cannot be added to an application."
+                Message =
+                    "User is inactive and cannot be added to an application."
             }),
 
             5 => Results.BadRequest(new
             {
                 ReturnCode = returnCode,
                 ApplicationID = request.ApplicationID,
-                Message = "Application does not exist or is inactive."
+                Message =
+                    "Application does not exist or is inactive."
             }),
 
             6 => Results.BadRequest(new
@@ -468,7 +838,8 @@ static async Task<IResult> AddUserToApplication(
                 ReturnCode = returnCode,
                 ApplicationID = request.ApplicationID,
                 RoleID = request.RoleID,
-                Message = "Role does not exist for this application."
+                Message =
+                    "Role does not exist for this application."
             }),
 
             7 => Results.BadRequest(new
@@ -484,8 +855,10 @@ static async Task<IResult> AddUserToApplication(
             }),
 
             -1 => Results.Problem(
-                detail: "An unexpected SQL Server error occurred while adding the user to the application.",
-                statusCode: StatusCodes.Status500InternalServerError),
+                detail:
+                    "An unexpected SQL Server error occurred while adding the user to the application.",
+                statusCode:
+                    StatusCodes.Status500InternalServerError),
 
             _ => Results.Problem(
                 $"Unexpected return code from Security.usp_AddUserToApplication: {returnCode}")
@@ -497,6 +870,7 @@ static async Task<IResult> AddUserToApplication(
     }
 }
 
+
 // ---------------------------------------------------------
 // POST deactivate a user's access to an application
 // Calls Security.usp_DeactivateUserFromApplication
@@ -506,34 +880,56 @@ static async Task<IResult> AddUserToApplication(
 static async Task<IResult> DeactivateUserFromApplication(
     int userId,
     int applicationId,
-    ModifyApplicationAccessRequest request,
-    AppDbContext db)
+    HttpContext context,
+    ICurrentUserResolver currentUserResolver,
+    AppDbContext db,
+    CancellationToken cancellationToken)
 {
+    var currentUser = await currentUserResolver.GetCurrentUserAsync(
+        context.User,
+        cancellationToken);
+
+    if (currentUser is null)
+    {
+        return Results.Problem(
+            detail: "The authenticated user is not registered in the User Management system.",
+            statusCode: StatusCodes.Status403Forbidden);
+    }
+
     var connection = db.Database.GetDbConnection();
     await connection.OpenAsync();
 
     try
     {
-        await using var command = connection.CreateCommand();
-        command.CommandText = "Security.usp_DeactivateUserFromApplication";
-        command.CommandType = CommandType.StoredProcedure;
+        await using var command =
+            connection.CreateCommand();
 
-        command.Parameters.Add(new SqlParameter("@UserID", SqlDbType.Int)
-        {
-            Value = userId
-        });
+        command.CommandText =
+            "Security.usp_DeactivateUserFromApplication";
 
-        command.Parameters.Add(new SqlParameter("@ApplicationID", SqlDbType.Int)
-        {
-            Value = applicationId
-        });
+        command.CommandType =
+            CommandType.StoredProcedure;
 
-        command.Parameters.Add(new SqlParameter("@ModifiedBy", SqlDbType.Int)
-        {
-            Value = (object?)request.ModifiedBy ?? DBNull.Value
-        });
+        command.Parameters.Add(
+            new SqlParameter("@UserID", SqlDbType.Int)
+            {
+                Value = userId
+            });
 
-        await using var reader = await command.ExecuteReaderAsync();
+        command.Parameters.Add(
+            new SqlParameter("@ApplicationID", SqlDbType.Int)
+            {
+                Value = applicationId
+            });
+
+        command.Parameters.Add(
+            new SqlParameter("@ModifiedBy", SqlDbType.Int)
+            {
+                Value = currentUser.UserID
+            });
+
+        await using var reader =
+            await command.ExecuteReaderAsync();
 
         if (!await reader.ReadAsync())
         {
@@ -541,11 +937,16 @@ static async Task<IResult> DeactivateUserFromApplication(
                 "Security.usp_DeactivateUserFromApplication did not return a result.");
         }
 
-        var returnCode = reader.GetInt32(reader.GetOrdinal("ReturnCode"));
-        var messageOrdinal = reader.GetOrdinal("Message");
-        var message = reader.IsDBNull(messageOrdinal)
-            ? string.Empty
-            : reader.GetString(messageOrdinal);
+        var returnCode =
+            reader.GetInt32(reader.GetOrdinal("ReturnCode"));
+
+        var messageOrdinal =
+            reader.GetOrdinal("Message");
+
+        var message =
+            reader.IsDBNull(messageOrdinal)
+                ? string.Empty
+                : reader.GetString(messageOrdinal);
 
         return returnCode switch
         {
@@ -582,7 +983,8 @@ static async Task<IResult> DeactivateUserFromApplication(
 
             4 => Results.Problem(
                 detail: message,
-                statusCode: StatusCodes.Status500InternalServerError),
+                statusCode:
+                    StatusCodes.Status500InternalServerError),
 
             _ => Results.Problem(
                 $"Unexpected return code from Security.usp_DeactivateUserFromApplication: {returnCode}")
@@ -604,34 +1006,58 @@ static async Task<IResult> DeactivateUserFromApplication(
 static async Task<IResult> ReactivateUserFromApplication(
     int userId,
     int applicationId,
-    ModifyApplicationAccessRequest request,
-    AppDbContext db)
+    HttpContext context,
+    ICurrentUserResolver currentUserResolver,
+    AppDbContext db,
+    CancellationToken cancellationToken)
 {
-    var connection = db.Database.GetDbConnection();
+    var currentUser = await currentUserResolver.GetCurrentUserAsync(
+        context.User,
+        cancellationToken);
+
+    if (currentUser is null)
+    {
+        return Results.Problem(
+            detail: "The authenticated user is not registered in the User Management system.",
+            statusCode: StatusCodes.Status403Forbidden);
+    }
+
+    var connection =
+        db.Database.GetDbConnection();
+
     await connection.OpenAsync();
 
     try
     {
-        await using var command = connection.CreateCommand();
-        command.CommandText = "Security.usp_ReactivateUserFromApplication";
-        command.CommandType = CommandType.StoredProcedure;
+        await using var command =
+            connection.CreateCommand();
 
-        command.Parameters.Add(new SqlParameter("@UserID", SqlDbType.Int)
-        {
-            Value = userId
-        });
+        command.CommandText =
+            "Security.usp_ReactivateUserFromApplication";
 
-        command.Parameters.Add(new SqlParameter("@ApplicationID", SqlDbType.Int)
-        {
-            Value = applicationId
-        });
+        command.CommandType =
+            CommandType.StoredProcedure;
 
-        command.Parameters.Add(new SqlParameter("@ModifiedBy", SqlDbType.Int)
-        {
-            Value = (object?)request.ModifiedBy ?? DBNull.Value
-        });
+        command.Parameters.Add(
+            new SqlParameter("@UserID", SqlDbType.Int)
+            {
+                Value = userId
+            });
 
-        await using var reader = await command.ExecuteReaderAsync();
+        command.Parameters.Add(
+            new SqlParameter("@ApplicationID", SqlDbType.Int)
+            {
+                Value = applicationId
+            });
+
+        command.Parameters.Add(
+            new SqlParameter("@ModifiedBy", SqlDbType.Int)
+            {
+                Value = currentUser.UserID
+            });
+
+        await using var reader =
+            await command.ExecuteReaderAsync();
 
         if (!await reader.ReadAsync())
         {
@@ -639,11 +1065,16 @@ static async Task<IResult> ReactivateUserFromApplication(
                 "Security.usp_ReactivateUserFromApplication did not return a result.");
         }
 
-        var returnCode = reader.GetInt32(reader.GetOrdinal("ReturnCode"));
-        var messageOrdinal = reader.GetOrdinal("Message");
-        var message = reader.IsDBNull(messageOrdinal)
-            ? string.Empty
-            : reader.GetString(messageOrdinal);
+        var returnCode =
+            reader.GetInt32(reader.GetOrdinal("ReturnCode"));
+
+        var messageOrdinal =
+            reader.GetOrdinal("Message");
+
+        var message =
+            reader.IsDBNull(messageOrdinal)
+                ? string.Empty
+                : reader.GetString(messageOrdinal);
 
         return returnCode switch
         {
@@ -687,7 +1118,8 @@ static async Task<IResult> ReactivateUserFromApplication(
 
             5 => Results.Problem(
                 detail: message,
-                statusCode: StatusCodes.Status500InternalServerError),
+                statusCode:
+                    StatusCodes.Status500InternalServerError),
 
             _ => Results.Problem(
                 $"Unexpected return code from Security.usp_ReactivateUserFromApplication: {returnCode}")
@@ -710,38 +1142,64 @@ static async Task<IResult> ChangeUserApplicationRole(
     int userId,
     int applicationId,
     ChangeUserApplicationRoleRequest request,
-    AppDbContext db)
+    HttpContext context,
+    ICurrentUserResolver currentUserResolver,
+    AppDbContext db,
+    CancellationToken cancellationToken)
 {
-    var connection = db.Database.GetDbConnection();
+    var currentUser = await currentUserResolver.GetCurrentUserAsync(
+        context.User,
+        cancellationToken);
+
+    if (currentUser is null)
+    {
+        return Results.Problem(
+            detail: "The authenticated user is not registered in the User Management system.",
+            statusCode: StatusCodes.Status403Forbidden);
+    }
+
+    var connection =
+        db.Database.GetDbConnection();
+
     await connection.OpenAsync();
 
     try
     {
-        await using var command = connection.CreateCommand();
-        command.CommandText = "Security.usp_ChangeUserApplicationRole";
-        command.CommandType = CommandType.StoredProcedure;
+        await using var command =
+            connection.CreateCommand();
 
-        command.Parameters.Add(new SqlParameter("@UserID", SqlDbType.Int)
-        {
-            Value = userId
-        });
+        command.CommandText =
+            "Security.usp_ChangeUserApplicationRole";
 
-        command.Parameters.Add(new SqlParameter("@ApplicationID", SqlDbType.Int)
-        {
-            Value = applicationId
-        });
+        command.CommandType =
+            CommandType.StoredProcedure;
 
-        command.Parameters.Add(new SqlParameter("@RoleID", SqlDbType.Int)
-        {
-            Value = request.RoleID
-        });
+        command.Parameters.Add(
+            new SqlParameter("@UserID", SqlDbType.Int)
+            {
+                Value = userId
+            });
 
-        command.Parameters.Add(new SqlParameter("@ModifiedBy", SqlDbType.Int)
-        {
-            Value = (object?)request.ModifiedBy ?? DBNull.Value
-        });
+        command.Parameters.Add(
+            new SqlParameter("@ApplicationID", SqlDbType.Int)
+            {
+                Value = applicationId
+            });
 
-        await using var reader = await command.ExecuteReaderAsync();
+        command.Parameters.Add(
+            new SqlParameter("@RoleID", SqlDbType.Int)
+            {
+                Value = request.RoleID
+            });
+
+        command.Parameters.Add(
+            new SqlParameter("@ModifiedBy", SqlDbType.Int)
+            {
+                Value = currentUser.UserID
+            });
+
+        await using var reader =
+            await command.ExecuteReaderAsync();
 
         if (!await reader.ReadAsync())
         {
@@ -749,11 +1207,16 @@ static async Task<IResult> ChangeUserApplicationRole(
                 "Security.usp_ChangeUserApplicationRole did not return a result.");
         }
 
-        var returnCode = reader.GetInt32(reader.GetOrdinal("ReturnCode"));
-        var messageOrdinal = reader.GetOrdinal("Message");
-        var message = reader.IsDBNull(messageOrdinal)
-            ? string.Empty
-            : reader.GetString(messageOrdinal);
+        var returnCode =
+            reader.GetInt32(reader.GetOrdinal("ReturnCode"));
+
+        var messageOrdinal =
+            reader.GetOrdinal("Message");
+
+        var message =
+            reader.IsDBNull(messageOrdinal)
+                ? string.Empty
+                : reader.GetString(messageOrdinal);
 
         return returnCode switch
         {
@@ -834,7 +1297,8 @@ static async Task<IResult> ChangeUserApplicationRole(
 
             -1 => Results.Problem(
                 detail: message,
-                statusCode: StatusCodes.Status500InternalServerError),
+                statusCode:
+                    StatusCodes.Status500InternalServerError),
 
             _ => Results.Problem(
                 $"Unexpected return code from Security.usp_ChangeUserApplicationRole: {returnCode}")

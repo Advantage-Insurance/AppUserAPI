@@ -4,327 +4,545 @@
 @using AppUserBlazor.Services
 @inject ApplicationUserService ApplicationUserService
 
-<h3>Application Users</h3>
-
-<div class="mb-3">
-    <label class="form-label">Application ID</label>
-    <input type="number"
-           class="form-control"
-           @bind="applicationId" />
+<div class="mb-4">
+    <h2 class="mb-1">User Management</h2>
+    <p class="text-muted mb-0">
+        Manage users, application assignments, roles, and access.
+    </p>
 </div>
 
-<div class="mb-3">
-    <label class="form-label">User ID</label>
-    <input type="number"
-           class="form-control"
-           @bind="userId" />
-</div>
-
-<div class="mt-2 mb-3">
-    <button class="btn btn-primary"
-            @onclick="LoadByApplicationAsync">
-        Load Application Users
-    </button>
-
-    <button class="btn btn-secondary"
-            @onclick="LoadAllAsync">
-        All Users
-    </button>
-
-    <button class="btn btn-success"
-            @onclick="FindUserAsync">
-        Find User
-    </button>
-    <button class="btn btn-info"
-            @onclick="LoadByUserAsync">
-        Load User Applications
-    </button>
-</div>
-
-@if (!string.IsNullOrEmpty(errorMessage))
-{
-    <div class="alert alert-danger">
-        @errorMessage
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Browse / Filter Application Users</h5>
     </div>
-}
 
-@if (selectedUser is not null)
-{
-    <div class="card mb-3">
-        <div class="card-body">
+    <div class="card-body">
 
-            <h5 class="card-title">
-                @selectedUser.FirstName @selectedUser.LastName
-            </h5>
+        <div class="mb-3">
+            <label class="form-label">Application</label>
 
-            <p class="card-text">
-                <strong>Application:</strong>
-                @selectedUser.ApplicationCode
-            </p>
+            <InputSelect class="form-select"
+                         @bind-Value="applicationId"
+                         @bind-Value:after="ApplicationChangedAsync">
 
-            <p class="card-text">
-                <strong>User Name:</strong>
-                @selectedUser.UserName
-            </p>
+                @foreach (var application in applications)
+                {
+                    <option value="@application.ApplicationID">
+                        @application.ApplicationName (@application.ApplicationCode)
+                    </option>
+                }
 
-            <p class="card-text">
-                <strong>Email:</strong>
-                @selectedUser.Email
-            </p>
-
-            <p class="card-text">
-                <strong>Role:</strong>
-                @selectedUser.RoleName
-            </p>
-
-            <p class="card-text">
-                <strong>User Active:</strong>
-                @selectedUser.IsUserActive
-            </p>
-
-            <p class="card-text">
-                <strong>Application Access Active:</strong>
-                @selectedUser.IsApplicationAccessActive
-            </p>
-
+            </InputSelect>
         </div>
+
+        <div class="mb-3">
+            <label class="form-label">User</label>
+
+            <InputSelect class="form-select"
+                         @bind-Value="userId"
+                         @bind-Value:after="UserChangedAsync">
+
+                @foreach (var user in securityUsers)
+                {
+                    <option value="@user.UserID">
+                        @user.FirstName @user.LastName (@user.UserName)
+                    </option>
+                }
+
+            </InputSelect>
+        </div>
+
+        <div class="mt-2 mb-3">
+            <button class="btn btn-secondary"
+                    @onclick="LoadAllAsync">
+                All Users
+            </button>
+
+            <button class="btn btn-success"
+                    @onclick="FindUserAsync">
+                Show Details
+            </button>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">
+                @errorMessage
+            </div>
+        }
+
+        @if (selectedUser is not null)
+        {
+            <div class="card mb-3">
+                <div class="card-body">
+
+                    <h5 class="card-title">
+                        @selectedUser.FirstName @selectedUser.LastName
+                    </h5>
+
+                    <p class="card-text">
+                        <strong>Application:</strong>
+                        @selectedUser.ApplicationCode
+                    </p>
+
+                    <p class="card-text">
+                        <strong>User Name:</strong>
+                        @selectedUser.UserName
+                    </p>
+
+                    <p class="card-text">
+                        <strong>Email:</strong>
+                        @selectedUser.Email
+                    </p>
+
+                    <p class="card-text">
+                        <strong>Role:</strong>
+                        @selectedUser.RoleName
+                    </p>
+
+                    <p class="card-text">
+                        <strong>User Active:</strong>
+                        @selectedUser.IsUserActive
+                    </p>
+
+                    <p class="card-text">
+                        <strong>Application Access Active:</strong>
+                        @selectedUser.IsApplicationAccessActive
+                    </p>
+
+                </div>
+            </div>
+        }
+
+        @if (users is null)
+        {
+            <p>Loading...</p>
+        }
+        else if (users.Count == 0)
+        {
+            <p>
+                <strong>@statusMessage</strong>
+            </p>
+
+            <p>No users found.</p>
+        }
+        else
+        {
+            <p>
+                <strong>@statusMessage</strong>
+            </p>
+
+            <div style="max-height: 420px; overflow-y: auto;">
+                <table class="table">
+                    <thead class="sticky-top bg-body">
+                        <tr>
+                            <th>Application</th>
+                            <th>User</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>User Active</th>
+                            <th>Access Active</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var user in users)
+                        {
+                            <tr>
+                                <td>@user.ApplicationCode</td>
+                                <td>@user.UserName</td>
+                                <td>@user.FirstName @user.LastName</td>
+                                <td>@user.Email</td>
+                                <td>@user.RoleName</td>
+                                <td>@user.IsUserActive</td>
+                                <td>@user.IsApplicationAccessActive</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
     </div>
-}
+</div>
 
-@if (users is null)
-{
-    <p>Loading...</p>
-}
-else if (users.Count == 0)
-{
-    <p>
-        <strong>@statusMessage</strong>
-    </p>
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Create User</h5>
+    </div>
 
-    <p>No users found.</p>
-}
-else
-{
-    <p>
-        <strong>@statusMessage</strong>
-    </p>
+    <div class="card-body">
 
+        <EditForm Model="newUser" OnValidSubmit="CreateUserAsync">
+            <div class="mb-3">
+                <label class="form-label">User Name</label>
+                <InputText class="form-control"
+                           @bind-Value="newUser.UserName" />
+            </div>
 
+            <div class="mb-3">
+                <label class="form-label">First Name</label>
+                <InputText class="form-control"
+                           @bind-Value="newUser.FirstName" />
+            </div>
 
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Application</th>
-                <th>User</th>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>User Active</th>
-                <th>Access Active</th>
-            </tr>
-        </thead>
+            <div class="mb-3">
+                <label class="form-label">Last Name</label>
+                <InputText class="form-control"
+                           @bind-Value="newUser.LastName" />
+            </div>
 
-        <tbody>
-            @foreach (var user in users)
+            <div class="mb-3">
+                <label class="form-label">Email</label>
+                <InputText class="form-control"
+                           @bind-Value="newUser.Email" />
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                Create User
+            </button>
+        </EditForm>
+
+        @if (!string.IsNullOrEmpty(createUserMessage))
+        {
+            <div class="alert alert-success mt-3">
+                @createUserMessage
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(createUserErrorMessage))
+        {
+            <div class="alert alert-danger mt-3">
+                @createUserErrorMessage
+            </div>
+        }
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Add User to Application</h5>
+    </div>
+
+    <div class="card-body">
+
+        <EditForm Model="addToApplication"
+                  OnValidSubmit="AddUserToApplicationAsync">
+
+            <div class="mb-3">
+                <label class="form-label">User</label>
+
+                <InputSelect class="form-select"
+                             @bind-Value="attachUserId"
+                             @bind-Value:after="AddUserChangedAsync">
+
+                    @foreach (var user in securityUsers)
+                    {
+                        <option value="@user.UserID">
+                            @user.FirstName @user.LastName (@user.UserName)
+                        </option>
+                    }
+
+                </InputSelect>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Available Application</label>
+
+                <InputSelect class="form-select"
+                             @bind-Value="addToApplication.ApplicationID"
+                             @bind-Value:after="AddApplicationChangedAsync">
+
+                    @foreach (var application in availableAddApplications)
+                    {
+                        <option value="@application.ApplicationID">
+                            @application.ApplicationName (@application.ApplicationCode)
+                        </option>
+                    }
+
+                </InputSelect>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Available Role</label>
+
+                <InputSelect class="form-select"
+                             @bind-Value="addToApplication.RoleID">
+
+                    @foreach (var role in addApplicationRoles)
+                    {
+                        if (role.IsActive)
+                        {
+                            <option value="@role.RoleID">
+                                @role.RoleName
+                            </option>
+                        }
+                    }
+
+                </InputSelect>
+            </div>
+
+            @if (availableAddApplications.Count == 0)
             {
-                <tr>
-                    <td>@user.ApplicationCode</td>
-                    <td>@user.UserName</td>
-                    <td>@user.FirstName @user.LastName</td>
-                    <td>@user.Email</td>
-                    <td>@user.RoleName</td>
-                    <td>@user.IsUserActive</td>
-                    <td>@user.IsApplicationAccessActive</td>
-                </tr>
+                <div class="alert alert-info">
+                    This user is already assigned to all active applications.
+                </div>
             }
-        </tbody>
-    </table>
 
-}
+            <button type="submit"
+                    class="btn btn-primary"
+                    disabled="@(availableAddApplications.Count == 0)">
+                Add to Application
+            </button>
+        </EditForm>
 
-<hr class="my-4" />
+        @if (!string.IsNullOrEmpty(addToApplicationMessage))
+        {
+            <div class="alert alert-success mt-3">
+                @addToApplicationMessage
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(addToApplicationErrorMessage))
+        {
+            <div class="alert alert-danger mt-3">
+                @addToApplicationErrorMessage
+            </div>
+        }
 
-<h4>Create User</h4>
-
-<EditForm Model="newUser" OnValidSubmit="CreateUserAsync">
-    <div class="mb-3">
-        <label class="form-label">User Name</label>
-        <InputText class="form-control"
-                   @bind-Value="newUser.UserName" />
     </div>
-
-    <div class="mb-3">
-        <label class="form-label">First Name</label>
-        <InputText class="form-control"
-                   @bind-Value="newUser.FirstName" />
-    </div>
-
-    <div class="mb-3">
-        <label class="form-label">Last Name</label>
-        <InputText class="form-control"
-                   @bind-Value="newUser.LastName" />
-    </div>
-
-    <div class="mb-3">
-        <label class="form-label">Email</label>
-        <InputText class="form-control"
-                   @bind-Value="newUser.Email" />
-    </div>
-
-    <div class="mb-3">
-        <label class="form-label">Created By</label>
-        <InputNumber class="form-control"
-                     @bind-Value="newUser.CreatedBy" />
-    </div>
-
-    <button type="submit" class="btn btn-primary">
-        Create User
-    </button>
-</EditForm>
-
-@if (!string.IsNullOrEmpty(createUserMessage))
-{
-    <div class="alert alert-success mt-3">
-        @createUserMessage
-    </div>
-}
-
-<hr class="my-4" />
-
-<h4>Add User to Application</h4>
-
-<EditForm Model="addToApplication"
-          OnValidSubmit="AddUserToApplicationAsync">
-
-    <div class="mb-3">
-        <label class="form-label">User ID</label>
-        <InputNumber class="form-control"
-                     @bind-Value="attachUserId" />
-    </div>
-
-    <div class="mb-3">
-        <label class="form-label">Application ID</label>
-        <InputNumber class="form-control"
-                     @bind-Value="addToApplication.ApplicationID" />
-    </div>
-
-    <div class="mb-3">
-        <label class="form-label">Role ID</label>
-        <InputNumber class="form-control"
-                     @bind-Value="addToApplication.RoleID" />
-    </div>
-
-    <div class="mb-3">
-        <label class="form-label">Created By</label>
-        <InputNumber class="form-control"
-                     @bind-Value="addToApplication.CreatedBy" />
-    </div>
-
-    <button type="submit" class="btn btn-primary">
-        Add to Application
-    </button>
-</EditForm>
-
-@if (!string.IsNullOrEmpty(addToApplicationMessage))
-{
-    <div class="alert alert-success mt-3">
-        @addToApplicationMessage
-    </div>
-}
-
-<hr class="my-4" />
-
-<h4>Change User Role</h4>
-
-<EditForm Model="changeRoleRequest"
-          OnValidSubmit="ChangeUserRoleAsync">
-
-    <div class="mb-3">
-        <label class="form-label">User ID</label>
-        <InputNumber class="form-control"
-                     @bind-Value="roleChangeUserId" />
-    </div>
-
-    <div class="mb-3">
-        <label class="form-label">Application ID</label>
-        <InputNumber class="form-control"
-                     @bind-Value="roleChangeApplicationId" />
-    </div>
-
-    <div class="mb-3">
-        <label class="form-label">New Role ID</label>
-        <InputNumber class="form-control"
-                     @bind-Value="changeRoleRequest.RoleID" />
-    </div>
-
-    <div class="mb-3">
-        <label class="form-label">Modified By</label>
-        <InputNumber class="form-control"
-                     @bind-Value="changeRoleRequest.ModifiedBy" />
-    </div>
-
-    <button type="submit" class="btn btn-warning">
-        Change Role
-    </button>
-</EditForm>
-
-@if (!string.IsNullOrEmpty(changeRoleMessage))
-{
-    <div class="alert alert-success mt-3">
-        @changeRoleMessage
-    </div>
-}
-
-<hr class="my-4" />
-
-<h4>Application Access</h4>
-
-<div class="mb-3">
-    <label class="form-label">User ID</label>
-    <InputNumber class="form-control"
-                 @bind-Value="accessUserId" />
 </div>
 
-<div class="mb-3">
-    <label class="form-label">Application ID</label>
-    <InputNumber class="form-control"
-                 @bind-Value="accessApplicationId" />
-</div>
-
-<div class="mb-3">
-    <label class="form-label">Modified By</label>
-    <InputNumber class="form-control"
-                 @bind-Value="accessRequest.ModifiedBy" />
-</div>
-
-<div class="mb-3">
-    <button class="btn btn-danger me-2"
-            @onclick="DeactivateAccessAsync">
-        Deactivate Access
-    </button>
-
-    <button class="btn btn-success"
-            @onclick="ReactivateAccessAsync">
-        Reactivate Access
-    </button>
-</div>
-
-@if (!string.IsNullOrEmpty(accessMessage))
-{
-    <div class="alert alert-info">
-        @accessMessage
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Change User Role</h5>
     </div>
-}
+
+    <div class="card-body">
+
+        <EditForm Model="changeRoleRequest"
+                  OnValidSubmit="ChangeUserRoleAsync">
+
+            <div class="mb-3">
+                <label class="form-label">User</label>
+
+                <InputSelect class="form-select"
+                             @bind-Value="roleChangeUserId"
+                             @bind-Value:after="RoleChangeUserChangedAsync">
+
+                    @foreach (var user in securityUsers)
+                    {
+                        <option value="@user.UserID">
+                            @user.FirstName @user.LastName (@user.UserName)
+                        </option>
+                    }
+
+                </InputSelect>
+            </div>
+
+            
+
+            <div class="mb-3">
+                <label class="form-label">Assigned Application</label>
+
+                <InputSelect class="form-select"
+                             @bind-Value="roleChangeApplicationId"
+                             @bind-Value:after="RoleChangeApplicationChangedAsync">
+
+                    @foreach (var application in roleChangeApplications)
+                    {
+                        <option value="@application.ApplicationID">
+                            @application.ApplicationName (@application.ApplicationCode)
+                        </option>
+                    }
+
+                </InputSelect>
+            </div>
+
+
+            @if (!string.IsNullOrEmpty(currentRoleName))
+            {
+                <div class="mb-3">
+                    <strong>Current Role:</strong>
+                    <span>@currentRoleName</span>
+                </div>
+            }
+
+            <div class="mb-3">
+                <label class="form-label">New Role</label>
+
+                <InputSelect class="form-select"
+                             @bind-Value="changeRoleRequest.RoleID">
+
+                    @foreach (var role in roleChangeRoles)
+                    {
+                        if (role.IsActive)
+                        {
+                            <option value="@role.RoleID">
+                                @role.RoleName
+                            </option>
+                        }
+                    }
+
+                </InputSelect>
+            </div>
+
+            @if (roleChangeApplications.Count == 0)
+            {
+                <div class="alert alert-info">
+                    This user is not assigned to any applications.
+                </div>
+            }
+            else if (roleChangeRoles.Count == 0)
+            {
+                <div class="alert alert-info">
+                    There are no other active roles available for this application.
+                </div>
+            }
+
+            <button type="submit"
+                    class="btn btn-warning"
+                    disabled="@(roleChangeApplications.Count == 0 || roleChangeRoles.Count == 0)">
+                Change Role
+            </button>
+        </EditForm>
+
+        @if (!string.IsNullOrEmpty(changeRoleMessage))
+        {
+            <div class="alert alert-success mt-3">
+                @changeRoleMessage
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(changeRoleErrorMessage))
+        {
+            <div class="alert alert-danger mt-3">
+                @changeRoleErrorMessage
+            </div>
+        }
+
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Application Access</h5>
+    </div>
+
+    <div class="card-body">
+
+        <div class="mb-3">
+            <label class="form-label">User</label>
+
+            <InputSelect class="form-select"
+                         @bind-Value="accessUserId"
+                         @bind-Value:after="AccessUserChangedAsync">
+
+                @foreach (var user in securityUsers)
+                {
+                    <option value="@user.UserID">
+                        @user.FirstName @user.LastName (@user.UserName)
+                    </option>
+                }
+
+            </InputSelect>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Assigned Application</label>
+
+            <InputSelect class="form-select"
+                         @bind-Value="accessApplicationId"
+                         @bind-Value:after="AccessApplicationChangedAsync">
+
+                @foreach (var application in accessApplications)
+                {
+                    <option value="@application.ApplicationID">
+                        @application.ApplicationName (@application.ApplicationCode)
+                    </option>
+                }
+
+            </InputSelect>
+        </div>
+
+        @if (accessApplications.Count == 0)
+        {
+            <div class="alert alert-info">
+                This user is not assigned to any applications.
+            </div>
+        }
+
+        @if (selectedAccessAssignment is not null)
+        {
+            <div class="mb-3">
+                <strong>Current Access:</strong>
+
+                @if (selectedAccessAssignment.IsApplicationAccessActive)
+                {
+                    <span>Active</span>
+                }
+                else
+                {
+                    <span>Inactive</span>
+                }
+            </div>
+        }
+
+        @if (selectedAccessAssignment is not null)
+        {
+            <div class="mb-3">
+                @if (selectedAccessAssignment.IsApplicationAccessActive)
+                {
+                    <button class="btn btn-danger"
+                            @onclick="DeactivateAccessAsync">
+                        Deactivate Access
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn-success"
+                            @onclick="ReactivateAccessAsync">
+                        Reactivate Access
+                    </button>
+                }
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(accessMessage))
+        {
+            <div class="alert alert-info">
+                @accessMessage
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(accessErrorMessage))
+        {
+            <div class="alert alert-danger">
+                @accessErrorMessage
+            </div>
+        }
+
+    </div>
+</div>
 
 @code
 {
     private List<ApplicationUser>? users;
 
     private ApplicationUser? selectedUser;
+    private ApplicationUser? selectedAccessAssignment;
 
-    private int applicationId = 2;
+    private List<ApplicationLookup> applications = new();
+    private List<SecurityUser> securityUsers = new();
+    private List<RoleLookup> addApplicationRoles = new();
+    private List<ApplicationLookup> availableAddApplications = new();
+    private List<ApplicationLookup> roleChangeApplications = new();
+    private List<RoleLookup> roleChangeRoles = new();
+    private List<ApplicationLookup> accessApplications = new();
 
-    private int userId = 1;
+    private int applicationId;
+
+    private int userId;
 
     private string statusMessage = "Showing all users";
 
@@ -332,30 +550,97 @@ else
 
     private CreateUserRequest newUser = new();
     private string? createUserMessage;
+    private string? createUserErrorMessage;
 
     private int attachUserId;
     private AddUserToApplicationRequest addToApplication = new();
     private string? addToApplicationMessage;
+    private string? addToApplicationErrorMessage;
 
     private int roleChangeUserId;
     private int roleChangeApplicationId;
+    private string? currentRoleName;
     private ChangeUserRoleRequest changeRoleRequest = new();
     private string? changeRoleMessage;
+    private string? changeRoleErrorMessage;
 
-    private int accessUserId = 1;
-    private int accessApplicationId = 1;
-    private ModifyApplicationAccessRequest accessRequest = new()
-    {
-        ModifiedBy = 1
-    };
+    private int accessUserId;
+    private int accessApplicationId;
 
     private string? accessMessage;
+    private string? accessErrorMessage;
 
     protected override async Task OnInitializedAsync()
     {
+        applications =
+            await ApplicationUserService.GetApplicationsAsync()
+            ?? new List<ApplicationLookup>();
+
+        securityUsers =
+            await ApplicationUserService.GetUsersAsync()
+            ?? new List<SecurityUser>();
+
+        foreach (var application in applications)
+        {
+            if (application.IsActive)
+            {
+                applicationId = application.ApplicationID;
+                addToApplication.ApplicationID = application.ApplicationID;
+                break;
+            }
+        }
+
+        foreach (var user in securityUsers)
+        {
+            if (user.IsActive)
+            {
+                userId = user.UserID;
+                attachUserId = user.UserID;
+                roleChangeUserId = user.UserID;
+                accessUserId = user.UserID;
+                break;
+            }
+        }
+
+        await LoadAvailableAddApplicationsAsync();
+
+        await LoadRoleChangeApplicationsAsync();
+
+        await LoadAccessApplicationsAsync();
+
         await LoadAllAsync();
     }
 
+    private ApplicationLookup? GetSelectedApplication()
+    {
+        foreach (var application in applications)
+        {
+            if (application.ApplicationID == applicationId)
+            {
+                return application;
+            }
+        }
+
+        return null;
+    }
+
+    private SecurityUser? GetSelectedSecurityUser()
+    {
+        foreach (var user in securityUsers)
+        {
+            if (user.UserID == userId)
+            {
+                return user;
+            }
+        }
+
+        return null;
+    }
+
+    private async Task UserChangedAsync()
+    {
+        await LoadByUserAsync();
+    }
 
     private async Task LoadByApplicationAsync()
     {
@@ -367,8 +652,11 @@ else
             users = await ApplicationUserService
                 .GetByApplicationAsync(applicationId);
 
-            statusMessage =
-                $"Showing users for application {applicationId}";
+            var application = GetSelectedApplication();
+
+            statusMessage = application is not null
+                ? $"Showing users for {application.ApplicationName}"
+                : "Showing application users";
         }
         catch (Exception ex)
         {
@@ -377,6 +665,15 @@ else
         }
     }
 
+    private async Task ApplicationChangedAsync()
+    {
+        await LoadByApplicationAsync();
+    }
+
+    private async Task RoleChangeUserChangedAsync()
+    {
+        await LoadRoleChangeApplicationsAsync();
+    }
 
     private async Task LoadAllAsync()
     {
@@ -396,7 +693,6 @@ else
         }
     }
 
-
     private async Task FindUserAsync()
     {
         try
@@ -411,14 +707,60 @@ else
 
             if (selectedUser is null)
             {
-                errorMessage =
-                    $"No user found for application {applicationId} and user {userId}.";
+                var application = GetSelectedApplication();
+                var user = GetSelectedSecurityUser();
+
+                if (application is not null && user is not null)
+                {
+                    errorMessage =
+                        $"{user.FirstName} {user.LastName} ({user.UserName}) is not assigned to {application.ApplicationName}.";
+                }
+                else
+                {
+                    errorMessage = "The selected user is not assigned to the selected application.";
+                }
             }
         }
         catch (Exception ex)
         {
             errorMessage =
                 $"Unable to find user: {ex.Message}";
+        }
+    }
+
+    private async Task LoadRoleChangeApplicationsAsync()
+    {
+        var userApplications =
+            await ApplicationUserService.GetByUserAsync(roleChangeUserId) ?? new List<ApplicationUser>();
+
+        roleChangeApplications = new List<ApplicationLookup>();
+
+        foreach (var application in applications)
+        {
+            foreach (var userApplication in userApplications)
+            {
+                if (userApplication.ApplicationID == application.ApplicationID)
+                {
+                    roleChangeApplications.Add(application);
+                    break;
+                }
+            }
+        }
+
+        roleChangeApplicationId = 0;
+        currentRoleName = null;
+        roleChangeRoles.Clear();
+        changeRoleRequest.RoleID = 0;
+
+        foreach (var application in roleChangeApplications)
+        {
+            roleChangeApplicationId = application.ApplicationID;
+            break;
+        }
+
+        if (roleChangeApplicationId != 0)
+        {
+            await LoadRoleChangeRolesAsync();
         }
     }
 
@@ -431,7 +773,11 @@ else
 
             users = await ApplicationUserService.GetByUserAsync(userId);
 
-            statusMessage = $"Showing applications for user {userId}";
+            var user = GetSelectedSecurityUser();
+
+            statusMessage = user is not null
+                ? $"Showing applications for {user.FirstName} {user.LastName}"
+                : "Showing user applications";
         }
         catch (Exception ex)
         {
@@ -444,22 +790,26 @@ else
     {
         try
         {
-            errorMessage = null;
             createUserMessage = null;
+            createUserErrorMessage = null;
 
             var response = await ApplicationUserService.CreateUserAsync(newUser);
 
             if (response is not null)
             {
                 createUserMessage =
-                    $"User created successfully. New User ID: {response.UserID}";
+                    $"User {newUser.FirstName} {newUser.LastName} ({newUser.UserName}) created successfully.";
 
                 newUser = new CreateUserRequest();
+
+                securityUsers =
+                    await ApplicationUserService.GetUsersAsync()
+                    ?? new List<SecurityUser>();
             }
         }
         catch (Exception ex)
         {
-            errorMessage = $"Unable to create user: {ex.Message}";
+            createUserErrorMessage = $"Unable to create user: {ex.Message}";
         }
     }
 
@@ -469,6 +819,7 @@ else
         {
             errorMessage = null;
             addToApplicationMessage = null;
+            addToApplicationErrorMessage = null;
 
             var response =
                 await ApplicationUserService.AddUserToApplicationAsync(
@@ -479,12 +830,13 @@ else
             {
                 addToApplicationMessage = response.Message;
 
+                await LoadAvailableAddApplicationsAsync();
                 await LoadAllAsync();
             }
         }
         catch (Exception ex)
         {
-            errorMessage =
+            addToApplicationErrorMessage =
                 $"Unable to add user to application: {ex.Message}";
         }
     }
@@ -495,6 +847,7 @@ else
         {
             errorMessage = null;
             changeRoleMessage = null;
+            changeRoleErrorMessage = null;
 
             var response =
                 await ApplicationUserService.ChangeUserRoleAsync(
@@ -511,33 +864,159 @@ else
         }
         catch (Exception ex)
         {
-            errorMessage =
+            changeRoleErrorMessage =
                 $"Unable to change user role: {ex.Message}";
         }
     }
-    
+
+    private async Task AddApplicationChangedAsync()
+    {
+        await LoadAddApplicationRolesAsync();
+    }
+
+    private async Task AddUserChangedAsync()
+    {
+        await LoadAvailableAddApplicationsAsync();
+    }
+
+    private async Task LoadAvailableAddApplicationsAsync()
+    {
+        var userApplications =
+            await ApplicationUserService.GetByUserAsync(attachUserId) ?? new List<ApplicationUser>();
+
+        availableAddApplications = new List<ApplicationLookup>();
+
+        foreach (var application in applications)
+        {
+            if (!application.IsActive)
+            {
+                continue;
+            }
+
+            bool alreadyAssigned = false;
+
+            foreach (var userApplication in userApplications)
+            {
+                if (userApplication.ApplicationID == application.ApplicationID)
+                {
+                    alreadyAssigned = true;
+                    break;
+                }
+            }
+
+            if (!alreadyAssigned)
+            {
+                availableAddApplications.Add(application);
+            }
+        }
+
+        addToApplication.ApplicationID = 0;
+        addToApplication.RoleID = 0;
+        addApplicationRoles.Clear();
+
+        foreach (var application in availableAddApplications)
+        {
+            addToApplication.ApplicationID = application.ApplicationID;
+            break;
+        }
+
+        if (addToApplication.ApplicationID != 0)
+        {
+            await LoadAddApplicationRolesAsync();
+        }
+    }
+
+    private async Task RoleChangeApplicationChangedAsync()
+    {
+        await LoadRoleChangeRolesAsync();
+    }
+
+    private async Task LoadRoleChangeRolesAsync()
+    {
+        roleChangeRoles = new List<RoleLookup>();
+
+        var applicationRoles =
+            await ApplicationUserService
+                .GetApplicationRolesAsync(roleChangeApplicationId)
+            ?? new List<RoleLookup>();
+
+        var userApplications =
+            await ApplicationUserService
+                .GetByUserAsync(roleChangeUserId)
+            ?? new List<ApplicationUser>();
+
+        int currentRoleId = 0;
+        currentRoleName = null;
+
+        foreach (var userApplication in userApplications)
+        {
+            if (userApplication.ApplicationID == roleChangeApplicationId)
+            {
+                currentRoleId = userApplication.RoleID;
+                currentRoleName = userApplication.RoleName;
+                break;
+            }
+        }
+
+        foreach (var role in applicationRoles)
+        {
+            if (role.IsActive && role.RoleID != currentRoleId)
+            {
+                roleChangeRoles.Add(role);
+            }
+        }
+
+        changeRoleRequest.RoleID = 0;
+
+        foreach (var role in roleChangeRoles)
+        {
+            changeRoleRequest.RoleID = role.RoleID;
+            break;
+        }
+    }
+
+    private async Task LoadAddApplicationRolesAsync()
+    {
+        addApplicationRoles =
+            await ApplicationUserService
+                .GetApplicationRolesAsync(addToApplication.ApplicationID)
+            ?? new List<RoleLookup>();
+
+        addToApplication.RoleID = 0;
+
+        foreach (var role in addApplicationRoles)
+        {
+            if (role.IsActive)
+            {
+                addToApplication.RoleID = role.RoleID;
+                break;
+            }
+        }
+    }
+
     private async Task DeactivateAccessAsync()
     {
         try
         {
             errorMessage = null;
             accessMessage = null;
+            accessErrorMessage = null;
 
             var response =
                 await ApplicationUserService.DeactivateApplicationAccessAsync(
                     accessUserId,
-                    accessApplicationId,
-                    accessRequest);
+                    accessApplicationId);
 
             if (response is not null)
             {
                 accessMessage = response.Message;
+                await LoadSelectedAccessAssignmentAsync();
                 await LoadAllAsync();
             }
         }
         catch (Exception ex)
         {
-            errorMessage =
+            accessErrorMessage =
                 $"Unable to deactivate application access: {ex.Message}";
         }
     }
@@ -548,23 +1027,86 @@ else
         {
             errorMessage = null;
             accessMessage = null;
+            accessErrorMessage = null;
 
             var response =
                 await ApplicationUserService.ReactivateApplicationAccessAsync(
                     accessUserId,
-                    accessApplicationId,
-                    accessRequest);
+                    accessApplicationId);
 
             if (response is not null)
             {
                 accessMessage = response.Message;
+                await LoadSelectedAccessAssignmentAsync();
                 await LoadAllAsync();
             }
         }
         catch (Exception ex)
         {
-            errorMessage =
+            accessErrorMessage =
                 $"Unable to reactivate application access: {ex.Message}";
         }
     }
+
+    private async Task AccessApplicationChangedAsync()
+    {
+        await LoadSelectedAccessAssignmentAsync();
+    }
+
+    private async Task LoadSelectedAccessAssignmentAsync()
+    {
+        selectedAccessAssignment = null;
+
+        var userApplications =
+            await ApplicationUserService.GetByUserAsync(accessUserId) ?? new List<ApplicationUser>();
+
+        foreach (var userApplication in userApplications)
+        {
+            if (userApplication.ApplicationID == accessApplicationId)
+            {
+                selectedAccessAssignment = userApplication;
+                break;
+            }
+        }
+    }
+
+    private async Task AccessUserChangedAsync()
+    {
+        await LoadAccessApplicationsAsync();
+    }
+
+    private async Task LoadAccessApplicationsAsync()
+    {
+        var userApplications =
+            await ApplicationUserService.GetByUserAsync(accessUserId) ?? new List<ApplicationUser>();
+
+        accessApplications = new List<ApplicationLookup>();
+
+        foreach (var application in applications)
+        {
+            foreach (var userApplication in userApplications)
+            {
+                if (userApplication.ApplicationID == application.ApplicationID)
+                {
+                    accessApplications.Add(application);
+                    break;
+                }
+            }
+        }
+
+        accessApplicationId = 0;
+        selectedAccessAssignment = null;
+
+        foreach (var application in accessApplications)
+        {
+            accessApplicationId = application.ApplicationID;
+            break;
+        }
+
+        if (accessApplicationId != 0)
+        {
+            await LoadSelectedAccessAssignmentAsync();
+        }
+    }
+
 }

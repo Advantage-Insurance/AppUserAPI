@@ -1,25 +1,63 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+﻿@using AppUserBlazor.Models
+@using AppUserBlazor.Services
+
+@inject ApplicationUserService ApplicationUserService
+
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">AppUserBlazor</a>
+        <a class="navbar-brand" href="">AVI App User Console</a>
     </div>
 </div>
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+<div class="nav-scrollable"
+     onclick="document.querySelector('.navbar-toggler').click()">
+
     <nav class="nav flex-column">
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+                <span class="bi bi-house-door-fill-nav-menu"
+                      aria-hidden="true"></span>
+                API Reference
             </NavLink>
         </div>
 
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="applicationusers">
-                <span class="bi bi-people-fill-nav-menu" aria-hidden="true"></span> Application Users
+                <span class="bi bi-people-fill-nav-menu"
+                      aria-hidden="true"></span>
+                User Management
             </NavLink>
         </div>
-
     </nav>
+
+    @if (currentUser is not null)
+    {
+        <div class="signed-in-user">
+            <div class="signed-in-label">
+                Signed in as
+            </div>
+
+            <div class="signed-in-name">
+                @currentUser.UserName
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(currentUser.Email))
+            {
+                <div class="signed-in-email">
+                    @currentUser.Email
+                </div>
+            }
+        </div>
+}
 </div>
 
+@code {
+    private CurrentSecurityUser? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentUser = await ApplicationUserService.GetCurrentUserAsync();
+    }
+}

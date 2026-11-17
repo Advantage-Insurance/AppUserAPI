@@ -1,4 +1,4 @@
-﻿namespace AppUserAPI
+﻿namespace AppUserAPI.Models
 {
     public class ApplicationUser
     {

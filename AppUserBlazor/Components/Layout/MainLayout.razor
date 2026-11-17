@@ -1,23 +1,96 @@
 ﻿@inherits LayoutComponentBase
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+@using AppUserBlazor.Models
+@using AppUserBlazor.Services
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+@inject ApplicationUserService ApplicationUserService
+
+@if (isCheckingAccess)
+{
+    <div class="container mt-4">
+        <p>Checking application access...</p>
+    </div>
+}
+else if (!hasAccess)
+{
+    <div class="container mt-4">
+        <div class="alert alert-danger">
+            <h4 class="alert-heading">Access Denied</h4>
+
+            <p class="mb-0">
+                You do not have active access to AVI App User Console.
+            </p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="page">
+        <div class="sidebar">
+            <NavMenu />
         </div>
 
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
-</div>
+        <main>
+            <article class="content px-4">
+                @Body
+            </article>
+        </main>
+    </div>
+}
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private bool isCheckingAccess = true;
+    private bool hasAccess;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var applications =
+                await ApplicationUserService.GetApplicationsAsync()
+                ?? new List<ApplicationLookup>();
+
+            int userManagementApplicationId = 0;
+
+            foreach (var application in applications)
+            {
+                if (application.ApplicationCode == "USER_MANAGEMENT")
+                {
+                    userManagementApplicationId =
+                        application.ApplicationID;
+
+                    break;
+                }
+            }
+
+            if (userManagementApplicationId == 0)
+            {
+                hasAccess = false;
+                return;
+            }
+
+            var applicationAccess =
+                await ApplicationUserService
+                    .GetCurrentUserApplicationAsync(
+                        userManagementApplicationId);
+
+            hasAccess =
+                applicationAccess is not null &&
+                applicationAccess.HasAccess;
+        }
+        catch
+        {
+            hasAccess = false;
+        }
+        finally
+        {
+            isCheckingAccess = false;
+        }
+    }
+}

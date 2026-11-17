@@ -12,6 +12,38 @@ namespace AppUserBlazor.Services
             _httpClientFactory = httpClientFactory;
         }
 
+        public async Task<CurrentSecurityUser?> GetCurrentUserAsync()
+        {
+            var client = _httpClientFactory.CreateClient("AppUserAPI");
+
+            return await client.GetFromJsonAsync<CurrentSecurityUser>(
+                "/auth/currentuser");
+        }
+
+        public async Task<List<ApplicationLookup>?> GetApplicationsAsync()
+        {
+            var client = _httpClientFactory.CreateClient("AppUserAPI");
+
+            return await client.GetFromJsonAsync<List<ApplicationLookup>>(
+                "/applications");
+        }
+
+        public async Task<List<SecurityUser>?> GetUsersAsync()
+        {
+            var client = _httpClientFactory.CreateClient("AppUserAPI");
+
+            return await client.GetFromJsonAsync<List<SecurityUser>>(
+                "/users");
+        }
+
+        public async Task<List<RoleLookup>?> GetApplicationRolesAsync(int applicationId)
+        {
+            var client = _httpClientFactory.CreateClient("AppUserAPI");
+
+            return await client.GetFromJsonAsync<List<RoleLookup>>(
+                $"/applications/{applicationId}/roles");
+        }
+
         public async Task<List<ApplicationUser>?> GetAllAsync()
         {
             var client = _httpClientFactory.CreateClient("AppUserAPI");
@@ -62,10 +94,16 @@ namespace AppUserBlazor.Services
                 "/users",
                 request);
 
-            response.EnsureSuccessStatusCode();
-
-            return await response.Content
+            var result = await response.Content
                 .ReadFromJsonAsync<CreateUserResponse>();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException(
+                    result?.Message ?? "Unable to create user.");
+            }
+
+            return result;
         }
 
         public async Task<AddUserToApplicationResponse?> AddUserToApplicationAsync(int userId, AddUserToApplicationRequest request)
@@ -96,13 +134,13 @@ namespace AppUserBlazor.Services
                 .ReadFromJsonAsync<ChangeUserRoleResponse>();
         }
 
-        public async Task<ApplicationAccessResponse?> DeactivateApplicationAccessAsync( int userId, int applicationId, ModifyApplicationAccessRequest request)
+        public async Task<ApplicationAccessResponse?> DeactivateApplicationAccessAsync(int userId, int applicationId)
         {
             var client = _httpClientFactory.CreateClient("AppUserAPI");
 
-            var response = await client.PostAsJsonAsync(
+            var response = await client.PostAsync(
                 $"/users/{userId}/applications/{applicationId}/deactivate",
-                request);
+                null);
 
             var result = await response.Content
                 .ReadFromJsonAsync<ApplicationAccessResponse>();
@@ -118,13 +156,13 @@ namespace AppUserBlazor.Services
             return result;
         }
 
-        public async Task<ApplicationAccessResponse?> ReactivateApplicationAccessAsync( int userId, int applicationId, ModifyApplicationAccessRequest request)
+        public async Task<ApplicationAccessResponse?> ReactivateApplicationAccessAsync(int userId, int applicationId)
         {
             var client = _httpClientFactory.CreateClient("AppUserAPI");
 
-            var response = await client.PostAsJsonAsync(
+            var response = await client.PostAsync(
                 $"/users/{userId}/applications/{applicationId}/reactivate",
-                request);
+                null);
 
             var result = await response.Content
                 .ReadFromJsonAsync<ApplicationAccessResponse>();
@@ -138,6 +176,14 @@ namespace AppUserBlazor.Services
             response.EnsureSuccessStatusCode();
 
             return result;
+        }
+
+        public async Task<CurrentUserApplicationAccess?>GetCurrentUserApplicationAsync(int applicationId)
+        {
+            var client = _httpClientFactory.CreateClient("AppUserAPI");
+
+            return await client.GetFromJsonAsync<CurrentUserApplicationAccess>(
+                $"/me/applications/{applicationId}");
         }
 
     }
