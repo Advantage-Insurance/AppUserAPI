@@ -170,6 +170,18 @@ applications.MapPost(
     CreateApplicationRole)
     .RequireAuthorization();
 
+// PUT /applications/2/roles/19/description
+applications.MapPut(
+    "/{applicationId}/roles/{roleId}/description",
+    UpdateApplicationRoleDescription)
+    .RequireAuthorization();
+
+// PUT /applications/2/description
+applications.MapPut(
+    "/{applicationId}/description",
+    UpdateApplicationDescription)
+    .RequireAuthorization();
+
 app.Run();
 
 
@@ -1419,6 +1431,208 @@ static async Task<IResult> CreateApplicationRole(
 
             _ => Results.Problem(
                 detail: "Unable to create the application role.",
+                statusCode: StatusCodes.Status500InternalServerError)
+        };
+    }
+    finally
+    {
+        await connection.CloseAsync();
+    }
+}
+
+static async Task<IResult> UpdateApplicationRoleDescription(
+    int applicationId,
+    int roleId,
+    UpdateApplicationRoleDescriptionRequest request,
+    HttpContext context,
+    ICurrentUserResolver currentUserResolver,
+    AppDbContext db,
+    CancellationToken cancellationToken)
+{
+    var currentUser = await currentUserResolver.GetCurrentUserAsync(
+        context.User,
+        cancellationToken);
+
+    if (currentUser is null)
+    {
+        return Results.Problem(
+            detail:
+                "The authenticated user is not registered in the User Management system.",
+            statusCode: StatusCodes.Status403Forbidden);
+    }
+
+    var connection = db.Database.GetDbConnection();
+
+    await connection.OpenAsync(cancellationToken);
+
+    try
+    {
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            "Security.usp_UpdateApplicationRoleDescription";
+
+        command.CommandType = CommandType.StoredProcedure;
+
+        command.Parameters.Add(
+            new SqlParameter("@ApplicationID", SqlDbType.Int)
+            {
+                Value = applicationId
+            });
+
+        command.Parameters.Add(
+            new SqlParameter("@RoleID", SqlDbType.Int)
+            {
+                Value = roleId
+            });
+
+        command.Parameters.Add(
+            new SqlParameter("@Description", SqlDbType.NVarChar, -1)
+            {
+                Value = (object?)request.Description ?? DBNull.Value
+            });
+
+        // Audit identity comes from Windows authentication.
+        command.Parameters.Add(
+            new SqlParameter("@ModifiedBy", SqlDbType.Int)
+            {
+                Value = currentUser.UserID
+            });
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return Results.Problem(
+                "Security.usp_UpdateApplicationRoleDescription did not return a result.");
+        }
+
+        var returnCode =
+            reader.GetInt32(reader.GetOrdinal("ReturnCode"));
+
+        var message =
+            reader.GetString(reader.GetOrdinal("Message"));
+
+        var result = new
+        {
+            ReturnCode = returnCode,
+            RoleID = roleId,
+            ApplicationID = applicationId,
+            Message = message
+        };
+
+        return returnCode switch
+        {
+            0 => Results.Ok(result),
+            1 => Results.NotFound(result),
+            2 => Results.BadRequest(result),
+
+            3 => Results.Problem(
+                detail: message,
+                statusCode: StatusCodes.Status403Forbidden),
+
+            // Saving an unchanged description is a successful no-op.
+            4 => Results.Ok(result),
+
+            _ => Results.Problem(
+                detail: "Unable to update the role description.",
+                statusCode: StatusCodes.Status500InternalServerError)
+        };
+    }
+    finally
+    {
+        await connection.CloseAsync();
+    }
+}
+
+static async Task<IResult> UpdateApplicationDescription(
+    int applicationId,
+    UpdateApplicationDescriptionRequest request,
+    HttpContext context,
+    ICurrentUserResolver currentUserResolver,
+    AppDbContext db,
+    CancellationToken cancellationToken)
+{
+    var currentUser = await currentUserResolver.GetCurrentUserAsync(
+        context.User,
+        cancellationToken);
+
+    if (currentUser is null)
+    {
+        return Results.Problem(
+            detail:
+                "The authenticated user is not registered in the User Management system.",
+            statusCode: StatusCodes.Status403Forbidden);
+    }
+
+    var connection = db.Database.GetDbConnection();
+
+    await connection.OpenAsync(cancellationToken);
+
+    try
+    {
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            "Security.usp_UpdateApplicationDescription";
+
+        command.CommandType = CommandType.StoredProcedure;
+
+        command.Parameters.Add(
+            new SqlParameter("@ApplicationID", SqlDbType.Int)
+            {
+                Value = applicationId
+            });
+
+        command.Parameters.Add(
+            new SqlParameter("@Description", SqlDbType.NVarChar, -1)
+            {
+                Value = (object?)request.Description ?? DBNull.Value
+            });
+
+        command.Parameters.Add(
+            new SqlParameter("@ModifiedBy", SqlDbType.Int)
+            {
+                Value = currentUser.UserID
+            });
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return Results.Problem(
+                "Security.usp_UpdateApplicationDescription did not return a result.");
+        }
+
+        var returnCode =
+            reader.GetInt32(reader.GetOrdinal("ReturnCode"));
+
+        var message =
+            reader.GetString(reader.GetOrdinal("Message"));
+
+        var result = new
+        {
+            ReturnCode = returnCode,
+            ApplicationID = applicationId,
+            Message = message
+        };
+
+        return returnCode switch
+        {
+            0 => Results.Ok(result),
+            1 => Results.NotFound(result),
+            2 => Results.BadRequest(result),
+
+            3 => Results.Problem(
+                detail: message,
+                statusCode: StatusCodes.Status403Forbidden),
+
+            4 => Results.Ok(result),
+
+            _ => Results.Problem(
+                detail: "Unable to update the application description.",
                 statusCode: StatusCodes.Status500InternalServerError)
         };
     }

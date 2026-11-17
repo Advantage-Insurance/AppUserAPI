@@ -2,6 +2,7 @@
 
 @using AppUserBlazor.Models
 @using AppUserBlazor.Services
+@using AppUserBlazor.Components.Shared
 @inject ApplicationUserService ApplicationUserService
 
 <div class="mb-4">
@@ -101,13 +102,13 @@
                     </p>
 
                     <p class="card-text">
-                        <strong>User Active:</strong>
-                        @selectedUser.IsUserActive
+                        <strong>User Status:</strong>
+                        <StatusBadge IsActive="@selectedUser.IsUserActive" />
                     </p>
 
                     <p class="card-text">
-                        <strong>Application Access Active:</strong>
-                        @selectedUser.IsApplicationAccessActive
+                        <strong>Application Access:</strong>
+                        <StatusBadge IsActive="@selectedUser.IsApplicationAccessActive" />
                     </p>
 
                 </div>
@@ -141,8 +142,8 @@
                             <th>Name</th>
                             <th>Email</th>
                             <th>Role</th>
-                            <th>User Active</th>
-                            <th>Access Active</th>
+                            <th>User Status</th>
+                            <th>Application Access</th>
                         </tr>
                     </thead>
 
@@ -155,8 +156,8 @@
                                 <td>@user.FirstName @user.LastName</td>
                                 <td>@user.Email</td>
                                 <td>@user.RoleName</td>
-                                <td>@user.IsUserActive</td>
-                                <td>@user.IsApplicationAccessActive</td>
+                                <td><StatusBadge IsActive="@user.IsUserActive" /></td>
+                                <td><StatusBadge IsActive="@user.IsApplicationAccessActive" /></td>
                             </tr>
                         }
                     </tbody>
@@ -477,14 +478,7 @@
             <div class="mb-3">
                 <strong>Current Access:</strong>
 
-                @if (selectedAccessAssignment.IsApplicationAccessActive)
-                {
-                    <span>Active</span>
-                }
-                else
-                {
-                    <span>Inactive</span>
-                }
+                <StatusBadge IsActive="@selectedAccessAssignment.IsApplicationAccessActive" />
             </div>
         }
 

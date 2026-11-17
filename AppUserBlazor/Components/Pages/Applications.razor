@@ -44,7 +44,7 @@ else
                                 <th>Code</th>
                                 <th>Description</th>
                                 <th>Status</th>
-                                <th></th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -55,14 +55,22 @@ else
                                     <td>@application.ApplicationCode</td>
                                     <td>@application.Description</td>
                                     <td>
-                                        @(application.IsActive ? "Active" : "Inactive")
+                                        <StatusBadge IsActive="@application.IsActive" />
                                     </td>
                                     <td>
-                                        <button class="btn btn-sm btn-primary"
-                                                disabled="@(isLoadingRoles || isSavingRole)"
-                                                @onclick="() => ManageAsync(application)">
-                                            Manage
-                                        </button>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-sm btn-primary"
+                                                    disabled="@(isLoadingRoles || isSavingRole || isSavingRoleEdit || isSavingApplicationEdit)"
+                                                    @onclick="() => ManageAsync(application)">
+                                                Roles
+                                            </button>
+
+                                            <button class="btn btn-sm btn-secondary"
+                                                    disabled="@(isLoadingRoles || isSavingRole || isSavingRoleEdit || isSavingApplicationEdit)"
+                                                    @onclick="() => BeginEditApplication(application)">
+                                                Edit
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             }
@@ -70,6 +78,65 @@ else
                     </table>
                 </div>
             }
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(applicationSuccessMessage))
+{
+    <div class="alert alert-success" role="status">
+        @applicationSuccessMessage
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(applicationErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        @applicationErrorMessage
+    </div>
+}
+
+@if (editingApplicationId is not null)
+{
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                Edit Application — @editingApplicationName
+            </h5>
+        </div>
+
+        <div class="card-body">
+            <EditForm Model="@applicationEdit"
+                      OnValidSubmit="SaveApplicationEditAsync">
+                <DataAnnotationsValidator />
+
+                <fieldset disabled="@isSavingApplicationEdit">
+                    <div class="mb-3">
+                        <label for="edit-application-description"
+                               class="form-label">
+                            Description
+                        </label>
+
+                        <InputTextArea id="edit-application-description"
+                                       class="form-control"
+                                       maxlength="255"
+                                       rows="2"
+                                       @bind-Value="applicationEdit.Description" />
+
+                        <ValidationMessage For="@(() => applicationEdit.Description)" />
+                    </div>
+
+                    <button type="submit" class="btn btn-success">
+                        @(isSavingApplicationEdit ? "Saving..." : "Save")
+                    </button>
+
+                    <button type="button"
+                            class="btn btn-secondary ms-2"
+                            @onclick="CancelEditApplication">
+                        Cancel
+                    </button>
+                </fieldset>
+            </EditForm>
         </div>
     </div>
 }
@@ -101,7 +168,7 @@ else
             @if (!showAddRole)
             {
                 <button class="btn btn-primary mb-3"
-                        disabled="@(isLoadingRoles || !selectedApplication.IsActive)"
+                        disabled="@(isLoadingRoles || isSavingRoleEdit || !selectedApplication.IsActive)"
                         @onclick="BeginAddRole">
                     Add Role
                 </button>
@@ -151,6 +218,44 @@ else
                     </EditForm>
                 </div>
             }
+
+            @if (editingRoleId is not null)
+            {
+                <div class="border rounded p-3 mb-3">
+                    <h6>Edit Role — @editingRoleName</h6>
+
+                    <EditForm Model="@roleEdit" OnValidSubmit="SaveRoleEditAsync">
+                        <DataAnnotationsValidator />
+
+                        <fieldset disabled="@isSavingRoleEdit">
+                            <div class="mb-3">
+                                <label for="edit-role-description" class="form-label">
+                                    Description
+                                </label>
+
+                                <InputTextArea id="edit-role-description"
+                                               class="form-control"
+                                               maxlength="255"
+                                               rows="2"
+                                               @bind-Value="roleEdit.Description" />
+
+                                <ValidationMessage For="@(() => roleEdit.Description)" />
+                            </div>
+
+                            <button type="submit" class="btn btn-success">
+                                @(isSavingRoleEdit ? "Saving..." : "Save")
+                            </button>
+
+                            <button type="button"
+                                    class="btn btn-secondary ms-2"
+                                    @onclick="CancelEditRole">
+                                Cancel
+                            </button>
+                        </fieldset>
+                    </EditForm>
+                </div>
+            }
+
             @if (isLoadingRoles)
             {
                 <p>Loading roles...</p>
@@ -170,6 +275,7 @@ else
                                 <th>Role</th>
                                 <th>Description</th>
                                 <th>Status</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -179,7 +285,14 @@ else
                                     <td>@role.RoleName</td>
                                     <td>@role.Description</td>
                                     <td>
-                                        @(role.IsActive ? "Active" : "Inactive")
+                                        <StatusBadge IsActive="@role.IsActive" />
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-secondary"
+                                                disabled="@(isSavingRole || isSavingRoleEdit)"
+                                                @onclick="() => BeginEditRole(role)">
+                                            Edit
+                                        </button>
                                     </td>
                                 </tr>
                             }
@@ -198,6 +311,199 @@ else
     private string? errorMessage;
     private bool isLoading = true;
     private bool isLoadingRoles;
+
+    private int? editingRoleId;
+    private string? editingRoleName;
+    private UpdateApplicationRoleDescriptionRequest roleEdit = new();
+    private bool isSavingRoleEdit;
+
+    private int? editingApplicationId;
+    private string? editingApplicationName;
+    private UpdateApplicationDescriptionRequest applicationEdit = new();
+    private bool isSavingApplicationEdit;
+    private string? applicationSuccessMessage;
+    private string? applicationErrorMessage;
+
+    private void BeginEditApplication(ApplicationLookup application)
+    {
+        // Close the roles section while editing an application.
+        selectedApplication = null;
+        roles.Clear();
+        showAddRole = false;
+        editingRoleId = null;
+        editingRoleName = null;
+        roleSuccessMessage = null;
+        roleErrorMessage = null;
+
+        applicationSuccessMessage = null;
+        applicationErrorMessage = null;
+
+        editingApplicationId = application.ApplicationID;
+        editingApplicationName = application.ApplicationName;
+
+        applicationEdit = new()
+        {
+            Description = application.Description
+        };
+    }
+
+    private void CancelEditApplication()
+    {
+        editingApplicationId = null;
+        editingApplicationName = null;
+        applicationEdit = new();
+        applicationErrorMessage = null;
+    }
+
+    private async Task SaveApplicationEditAsync()
+    {
+        if (editingApplicationId is null || isSavingApplicationEdit)
+            return;
+
+        var applicationId = editingApplicationId.Value;
+
+        isSavingApplicationEdit = true;
+        applicationSuccessMessage = null;
+        applicationErrorMessage = null;
+
+        try
+        {
+            var result =
+                await ApplicationUserService.UpdateApplicationDescriptionAsync(
+                    applicationId,
+                    applicationEdit);
+
+            if (result is null
+                || (result.ReturnCode != 0 && result.ReturnCode != 4))
+            {
+                applicationErrorMessage = result?.Message
+                    ?? "Unable to confirm the description update.";
+                return;
+            }
+
+            editingApplicationId = null;
+            editingApplicationName = null;
+            applicationEdit = new();
+            applicationSuccessMessage = result.Message;
+
+            try
+            {
+                applications =
+                    await ApplicationUserService.GetApplicationsAsync()
+                    ?? new List<ApplicationLookup>();
+            }
+            catch (Exception)
+            {
+                applicationErrorMessage =
+                    "The save completed, but the application list could not "
+                    + "be refreshed. Reload the page to view the current data.";
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            applicationErrorMessage = ex.Message;
+        }
+        catch (Exception)
+        {
+            applicationErrorMessage =
+                "Unable to confirm whether the description was updated. "
+                + "Reload the page before trying again.";
+        }
+        finally
+        {
+            isSavingApplicationEdit = false;
+        }
+    }
+
+    private void BeginEditRole(RoleLookup role)
+    {
+        showAddRole = false;
+        roleSuccessMessage = null;
+        roleErrorMessage = null;
+
+        editingRoleId = role.RoleID;
+        editingRoleName = role.RoleName;
+
+        roleEdit = new()
+        {
+            Description = role.Description
+        };
+    }
+
+    private void CancelEditRole()
+    {
+        editingRoleId = null;
+        editingRoleName = null;
+        roleEdit = new();
+        roleErrorMessage = null;
+    }
+
+    private async Task SaveRoleEditAsync()
+    {
+        if (selectedApplication is null
+            || editingRoleId is null
+            || isSavingRoleEdit)
+        {
+            return;
+        }
+
+        var applicationId = selectedApplication.ApplicationID;
+        var roleId = editingRoleId.Value;
+
+        isSavingRoleEdit = true;
+        roleSuccessMessage = null;
+        roleErrorMessage = null;
+
+        try
+        {
+            var result =
+                await ApplicationUserService.UpdateApplicationRoleDescriptionAsync(
+                    applicationId,
+                    roleId,
+                    roleEdit);
+
+            if (result is null
+                || (result.ReturnCode != 0 && result.ReturnCode != 4))
+            {
+                roleErrorMessage = result?.Message
+                    ?? "Unable to confirm the description update.";
+                return;
+            }
+
+            editingRoleId = null;
+            editingRoleName = null;
+            roleEdit = new();
+            roleSuccessMessage = result.Message;
+
+            try
+            {
+                roles =
+                    await ApplicationUserService.GetApplicationRolesAsync(
+                        applicationId)
+                    ?? new List<RoleLookup>();
+            }
+            catch (Exception)
+            {
+                roleErrorMessage =
+                    "The save completed, but the list could not be refreshed. "
+                    + "Select Roles again to reload it.";
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            roleErrorMessage = ex.Message;
+        }
+        catch (Exception)
+        {
+            roleErrorMessage =
+                "Unable to confirm whether the description was updated. "
+                + "Reload the role list before trying again.";
+        }
+        finally
+        {
+            isSavingRoleEdit = false;
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -219,6 +525,9 @@ else
 
     private async Task ManageAsync(ApplicationLookup application)
     {
+        editingRoleId = null;
+        editingRoleName = null;
+        roleEdit = new();
         errorMessage = null;
         selectedApplication = application;
         roles.Clear();
@@ -227,6 +536,11 @@ else
         newRole = new();
         roleSuccessMessage = null;
         roleErrorMessage = null;
+        editingApplicationId = null;
+        editingApplicationName = null;
+        applicationEdit = new();
+        applicationSuccessMessage = null;
+        applicationErrorMessage = null;
 
         try
         {
@@ -254,6 +568,9 @@ else
 
     private void BeginAddRole()
     {
+        editingRoleId = null;
+        editingRoleName = null;
+        roleEdit = new();
         newRole = new();
         roleSuccessMessage = null;
         roleErrorMessage = null;

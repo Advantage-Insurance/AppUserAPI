@@ -230,5 +230,100 @@ namespace AppUserBlazor.Services
                 .ReadFromJsonAsync<CreateApplicationRoleResponse>();
         }
 
+        public async Task<UpdateApplicationRoleDescriptionResponse?>
+    UpdateApplicationRoleDescriptionAsync(
+        int applicationId,
+        int roleId,
+        UpdateApplicationRoleDescriptionRequest request)
+        {
+            var client = _httpClientFactory.CreateClient("AppUserAPI");
+
+            using var response = await client.PutAsJsonAsync(
+                $"/applications/{applicationId}/roles/{roleId}/description",
+                request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var message = "Unable to update the role description.";
+
+                try
+                {
+                    using var document =
+                        System.Text.Json.JsonDocument.Parse(
+                            await response.Content.ReadAsStringAsync());
+
+                    foreach (var property in document.RootElement.EnumerateObject())
+                    {
+                        if ((property.Name.Equals(
+                                "message", StringComparison.OrdinalIgnoreCase)
+                             || property.Name.Equals(
+                                "detail", StringComparison.OrdinalIgnoreCase))
+                            && property.Value.ValueKind ==
+                                System.Text.Json.JsonValueKind.String)
+                        {
+                            message = property.Value.GetString() ?? message;
+                            break;
+                        }
+                    }
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    // Use the default message for a non-JSON response.
+                }
+
+                throw new InvalidOperationException(message);
+            }
+
+            return await response.Content
+                .ReadFromJsonAsync<UpdateApplicationRoleDescriptionResponse>();
+        }
+
+        public async Task<UpdateApplicationDescriptionResponse?>
+    UpdateApplicationDescriptionAsync(
+        int applicationId,
+        UpdateApplicationDescriptionRequest request)
+        {
+            var client = _httpClientFactory.CreateClient("AppUserAPI");
+
+            using var response = await client.PutAsJsonAsync(
+                $"/applications/{applicationId}/description",
+                request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var message = "Unable to update the application description.";
+
+                try
+                {
+                    using var document =
+                        System.Text.Json.JsonDocument.Parse(
+                            await response.Content.ReadAsStringAsync());
+
+                    foreach (var property in document.RootElement.EnumerateObject())
+                    {
+                        if ((property.Name.Equals(
+                                "message", StringComparison.OrdinalIgnoreCase)
+                             || property.Name.Equals(
+                                "detail", StringComparison.OrdinalIgnoreCase))
+                            && property.Value.ValueKind ==
+                                System.Text.Json.JsonValueKind.String)
+                        {
+                            message = property.Value.GetString() ?? message;
+                            break;
+                        }
+                    }
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    // Use the default message for a non-JSON response.
+                }
+
+                throw new InvalidOperationException(message);
+            }
+
+            return await response.Content
+                .ReadFromJsonAsync<UpdateApplicationDescriptionResponse>();
+        }
+
     }
 }
