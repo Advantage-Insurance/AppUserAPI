@@ -1,0 +1,629 @@
+﻿@page "/"
+
+@using AppUserBlazor.Models
+@using AppUserBlazor.Services
+
+@inject ApplicationUserService ApplicationUserService
+
+<PageTitle>API Reference</PageTitle>
+
+<h1>API Reference</h1>
+
+<p class="lead">
+     Reference documentation for the User Management API.
+</p>
+
+<p>
+    This application provides an administrative interface to the User Management API.
+    Authentication currently uses Windows Authentication, while application access
+    and role assignments are managed through the Security schema in AVI_COMMON.
+</p>
+
+<hr />
+
+<h3>Authentication</h3>
+
+<p>
+    These endpoints identify the authenticated Windows user and resolve that identity
+    to the corresponding user in <code>Security.Users</code>.
+</p>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Method</th>
+            <th>Endpoint</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>GET</td>
+            <td><code>/auth/whoami</code></td>
+            <td>
+                Returns information about the currently authenticated Windows identity.
+            </td>
+        </tr>
+
+    <tr>
+        <td>GET</td>
+        <td><code>/auth/currentuser</code></td>
+        <td>
+            Resolves the authenticated Windows identity to the corresponding
+            active user in <code>Security.Users</code>.
+        </td>
+    </tr>
+</tbody>
+
+</table>
+
+<hr />
+
+<h3>Current User / Application Authorization</h3>
+
+<p>
+    Authentication identifies the user. Application authorization determines whether
+    that user has access to a specific application and which role is assigned.
+</p>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Method</th>
+            <th>Endpoint</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>GET</td>
+            <td><code>/me/applications/{applicationId}</code></td>
+            <td>
+                Returns the current user's access and role information for a specific
+                application.
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<hr />
+
+<h3>Application Users</h3>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Method</th>
+            <th>Endpoint</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>GET</td>
+            <td><code>/applicationusers</code></td>
+            <td>
+                Returns all application/user relationships.
+            </td>
+        </tr>
+
+    <tr>
+        <td>GET</td>
+        <td><code>/applicationusers/application/{applicationId}</code></td>
+        <td>
+            Returns all users assigned to a specific application.
+        </td>
+    </tr>
+
+    <tr>
+        <td>GET</td>
+        <td>
+            <code>/applicationusers/application/{applicationId}/user/{userId}</code>
+        </td>
+        <td>
+            Returns one specific user/application relationship.
+        </td>
+    </tr>
+
+    <tr>
+        <td>GET</td>
+        <td><code>/applicationusers/user/{userId}</code></td>
+        <td>
+            Returns all application assignments for a specific user.
+        </td>
+    </tr>
+</tbody>
+
+</table>
+
+<hr />
+
+<h3>User Management</h3>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Method</th>
+            <th>Endpoint</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>POST</td>
+            <td><code>/users</code></td>
+            <td>
+                Creates a new user.
+            </td>
+        </tr>
+
+    <tr>
+        <td>POST</td>
+        <td><code>/users/{userId}/reactivate</code></td>
+        <td>
+            Reactivates an existing inactive user.
+        </td>
+    </tr>
+
+    <tr>
+        <td>POST</td>
+        <td><code>/users/{userId}/applications</code></td>
+        <td>
+            Adds an existing user to an application with a specified role.
+        </td>
+    </tr>
+
+    <tr>
+        <td>POST</td>
+        <td>
+            <code>/users/{userId}/applications/{applicationId}/deactivate</code>
+        </td>
+        <td>
+            Deactivates the user's access to an application.
+        </td>
+    </tr>
+
+    <tr>
+        <td>POST</td>
+        <td>
+            <code>/users/{userId}/applications/{applicationId}/reactivate</code>
+        </td>
+        <td>
+            Reactivates the user's access to an application.
+        </td>
+    </tr>
+
+    <tr>
+        <td>PUT</td>
+        <td>
+            <code>/users/{userId}/applications/{applicationId}/role</code>
+        </td>
+        <td>
+            Changes the user's role for a specific application.
+        </td>
+    </tr>
+</tbody>
+
+</table>
+
+<hr />
+
+<h3>Application Management</h3>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Method</th>
+            <th>Endpoint</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>GET</td>
+            <td><code>/applications</code></td>
+            <td>
+                Lists applications, including their code, name,
+                description, and active status.
+                Includes inactive applications.
+            </td>
+        </tr>
+        <tr>
+            <td>GET</td>
+            <td><code>/applications/{applicationId}/roles</code></td>
+            <td>
+                Lists the application's roles, descriptions,
+                and active statuses. Includes inactive roles.
+            </td>
+        </tr>
+        <tr>
+            <td>POST</td>
+            <td><code>/applications</code></td>
+            <td>Creates an application.</td>
+        </tr>
+        <tr>
+            <td>POST</td>
+            <td><code>/applications/{applicationId}/roles</code></td>
+            <td>Creates a role for an application.</td>
+        </tr>
+        <tr>
+            <td>PUT</td>
+            <td><code>/applications/{applicationId}/description</code></td>
+            <td>Updates or clears an application's description.</td>
+        </tr>
+        <tr>
+            <td>PUT</td>
+            <td>
+                <code>/applications/{applicationId}/roles/{roleId}/description</code>
+            </td>
+            <td>Updates or clears a role's description.</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="alert alert-info">
+    All POST and PUT endpoints in this section require Windows
+    Authentication and an active registered user.
+    The API determines CreatedBy and ModifiedBy from that identity.
+    Clients do not supply audit fields.
+</div>
+
+<h4>Create Application</h4>
+
+<p><code>POST /applications</code></p>
+
+<table class="table table-sm">
+    <thead>
+        <tr>
+            <th>Field</th>
+            <th>Required</th>
+            <th>Maximum length</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>applicationCode</td>
+            <td>Yes</td>
+            <td>25</td>
+        </tr>
+        <tr>
+            <td>applicationName</td>
+            <td>Yes</td>
+            <td>100</td>
+        </tr>
+        <tr>
+            <td>description</td>
+            <td>No</td>
+            <td>255</td>
+        </tr>
+    </tbody>
+</table>
+
+<p>
+    Application codes and names must each be unique,
+    including against inactive applications.
+    Values are trimmed; blank descriptions are stored as NULL.
+    New applications start active.
+    Roles and user assignments must be added separately.
+</p>
+
+<h5>Example request</h5>
+
+<pre class="bg-light border rounded p-3"><code>&#123;
+  "applicationCode": "SAMPLE_APP",
+  "applicationName": "Sample Application",
+  "description": "Example application."
+&#125;</code></pre>
+
+<h5>Example response — 201 Created</h5>
+
+<pre class="bg-light border rounded p-3"><code>&#123;
+  "returnCode": 0,
+  "applicationID": 8,
+  "message": "Application created successfully."
+&#125;</code></pre>
+
+<table class="table table-sm">
+    <thead>
+        <tr>
+            <th>Return code</th>
+            <th>HTTP status</th>
+            <th>Meaning</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>0</td>
+            <td>201</td>
+            <td>Application created.</td>
+        </tr>
+        <tr>
+            <td>1</td>
+            <td>400</td>
+            <td>Application code is required.</td>
+        </tr>
+        <tr>
+            <td>2</td>
+            <td>400</td>
+            <td>Application code exceeds 25 characters.</td>
+        </tr>
+        <tr>
+            <td>3</td>
+            <td>400</td>
+            <td>Application name is required.</td>
+        </tr>
+        <tr>
+            <td>4</td>
+            <td>400</td>
+            <td>Application name exceeds 100 characters.</td>
+        </tr>
+        <tr>
+            <td>5</td>
+            <td>400</td>
+            <td>Description exceeds 255 characters.</td>
+        </tr>
+        <tr>
+            <td>6</td>
+            <td>409</td>
+            <td>Application code already exists.</td>
+        </tr>
+        <tr>
+            <td>7</td>
+            <td>409</td>
+            <td>Application name already exists.</td>
+        </tr>
+        <tr>
+            <td>8</td>
+            <td>403</td>
+            <td>Audit user does not exist or is inactive.</td>
+        </tr>
+    </tbody>
+</table>
+
+<hr />
+
+<h4>Create Application Role</h4>
+
+<p><code>POST /applications/{applicationId}/roles</code></p>
+
+<p>
+    Role name is required and limited to 50 characters.
+    Description is optional and limited to 255 characters.
+    Values are trimmed.
+    The application must exist and be active.
+    Role names must be unique within the application,
+    including against inactive roles.
+</p>
+
+<h5>Example request</h5>
+
+<pre class="bg-light border rounded p-3"><code>&#123;
+  "roleName": "Viewer",
+  "description": "Read-only access."
+&#125;</code></pre>
+
+<h5>Example response — 201 Created</h5>
+
+<pre class="bg-light border rounded p-3"><code>&#123;
+  "returnCode": 0,
+  "roleID": 20,
+  "applicationID": 8,
+  "message": "Application role created successfully."
+&#125;</code></pre>
+
+<p>
+    New roles start active. Creating a role does not assign users
+    or implement permission checks in the consuming application.
+</p>
+
+<table class="table table-sm">
+    <thead>
+        <tr>
+            <th>Return code</th>
+            <th>HTTP status</th>
+            <th>Meaning</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>0</td>
+            <td>201</td>
+            <td>Role created.</td>
+        </tr>
+        <tr>
+            <td>1</td>
+            <td>400</td>
+            <td>Application does not exist or is inactive.</td>
+        </tr>
+        <tr>
+            <td>2</td>
+            <td>400</td>
+            <td>Role name is required.</td>
+        </tr>
+        <tr>
+            <td>3</td>
+            <td>400</td>
+            <td>Role name exceeds 50 characters.</td>
+        </tr>
+        <tr>
+            <td>4</td>
+            <td>400</td>
+            <td>Description exceeds 255 characters.</td>
+        </tr>
+        <tr>
+            <td>5</td>
+            <td>409</td>
+            <td>Role name already exists for this application.</td>
+        </tr>
+        <tr>
+            <td>6</td>
+            <td>403</td>
+            <td>Audit user does not exist or is inactive.</td>
+        </tr>
+    </tbody>
+</table>
+
+<hr />
+
+<h4>Update Application or Role Description</h4>
+
+<p><code>PUT /applications/{applicationId}/description</code></p>
+
+<p>
+    <code>PUT /applications/{applicationId}/roles/{roleId}/description</code>
+</p>
+
+<p>
+    Both endpoints accept the same request structure.
+    Description is limited to 255 characters and is trimmed.
+    An omitted, NULL, empty, or whitespace-only description clears it.
+    Names, codes, active statuses, and user assignments remain unchanged.
+</p>
+
+<h5>Example request</h5>
+
+<pre class="bg-light border rounded p-3"><code>&#123;
+  "description": "Updated description."
+&#125;</code></pre>
+
+<h5>Application response — 200 OK</h5>
+
+<pre class="bg-light border rounded p-3"><code>&#123;
+  "returnCode": 0,
+  "applicationID": 8,
+  "message": "Application description updated successfully."
+&#125;</code></pre>
+
+<h5>Role response — 200 OK</h5>
+
+<pre class="bg-light border rounded p-3"><code>&#123;
+  "returnCode": 0,
+  "roleID": 20,
+  "applicationID": 8,
+  "message": "Role description updated successfully."
+&#125;</code></pre>
+
+<table class="table table-sm">
+    <thead>
+        <tr>
+            <th>Return code</th>
+            <th>HTTP status</th>
+            <th>Meaning</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>0</td>
+            <td>200</td>
+            <td>Description updated.</td>
+        </tr>
+        <tr>
+            <td>1</td>
+            <td>404</td>
+            <td>
+                Application not found, or role not found
+                within the specified application.
+            </td>
+        </tr>
+        <tr>
+            <td>2</td>
+            <td>400</td>
+            <td>Description exceeds 255 characters.</td>
+        </tr>
+        <tr>
+            <td>3</td>
+            <td>403</td>
+            <td>Audit user does not exist or is inactive.</td>
+        </tr>
+        <tr>
+            <td>4</td>
+            <td>200</td>
+            <td>Description is unchanged; no update performed.</td>
+        </tr>
+    </tbody>
+</table>
+
+<p>
+    An actual change updates ModifiedDate in UTC and records the
+    authenticated user's ID in ModifiedBy. Creation fields are preserved.
+    Saving an unchanged description preserves the modification fields too.
+</p>
+
+<hr />
+
+<h4>Application Management Error Responses</h4>
+
+<p>
+    Unauthenticated write requests receive HTTP 401.
+    An authenticated identity that cannot be resolved to an active
+    registered user receives HTTP 403.
+    Unexpected server errors receive HTTP 500.
+</p>
+
+<p>
+    Validation and duplicate errors use returnCode and message.
+    Forbidden and unexpected-error responses use Problem Details
+    with a detail field. Clients should handle both response formats.
+    IDs in the examples above are illustrative.
+</p>
+
+<h5>Example duplicate application response — 409 Conflict</h5>
+
+<pre class="bg-light border rounded p-3"><code>&#123;
+  "returnCode": 6,
+  "applicationID": null,
+  "message": "Application code already exists."
+&#125;</code></pre>
+
+<hr />
+
+<h3>Authentication and Audit Behavior</h3>
+
+<div class="alert alert-info">
+    <p>
+        <strong>Authentication:</strong>
+        Protected API endpoints currently use Windows Authentication.
+    </p>
+
+<p>
+    <strong>Application authorization:</strong>
+    Being authenticated does not automatically grant access to an application.
+    Application assignments and roles are maintained in the
+    <code>Security</code> schema.
+</p>
+
+<p class="mb-0">
+    <strong>Audit identity:</strong>
+    <code>CreatedBy</code> and <code>ModifiedBy</code> are determined by the API
+    from the authenticated user. Clients do not supply these values.
+</p>
+
+</div>
+
+<hr />
+
+<h3>Current API Base Address</h3>
+
+<p>
+    <code>https://localhost:7098</code>
+</p>
+
+<p class="text-muted">
+    This address reflects the current local development environment and may change
+    when the application is hosted.
+</p>
+
+@code {
+    private List<ApplicationLookup>? applications;
+    private List<RoleLookup>? roles;
+    private List<SecurityUser>? users;
+
+    protected override async Task OnInitializedAsync()
+    {
+        applications = await ApplicationUserService.GetApplicationsAsync();
+
+        roles = await ApplicationUserService.GetApplicationRolesAsync(3);
+
+        users = await ApplicationUserService.GetUsersAsync();
+    }
+}

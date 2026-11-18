@@ -11,6 +11,60 @@
     </p>
 </div>
 
+<div class="mb-3">
+    <button class="btn btn-primary"
+            disabled="@(isLoading || isLoadingRoles || isSavingRole || isSavingRoleEdit || isSavingApplicationEdit || isCreatingApplication)"
+            @onclick="BeginCreateApplication">
+        New Application
+    </button>
+</div>
+
+@if (showCreateApplication)
+{
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">New Application</h5>
+        </div>
+        <div class="card-body">
+            @if (!string.IsNullOrEmpty(createApplicationError))
+            {
+                <div class="alert alert-danger" role="alert">@createApplicationError</div>
+            }
+            <EditForm Model="@newApplication" OnValidSubmit="SaveNewApplicationAsync">
+                <DataAnnotationsValidator />
+                <fieldset disabled="@isCreatingApplication">
+                    <div class="mb-3">
+                        <label for="new-application-code" class="form-label">Application code</label>
+                        <InputText id="new-application-code" class="form-control"
+                                   maxlength="25" @bind-Value="newApplication.ApplicationCode" />
+                        <ValidationMessage For="@(() => newApplication.ApplicationCode)" />
+                        <div class="form-text">A stable code used to identify this application.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new-application-name" class="form-label">Application name</label>
+                        <InputText id="new-application-name" class="form-control"
+                                   maxlength="100" @bind-Value="newApplication.ApplicationName" />
+                        <ValidationMessage For="@(() => newApplication.ApplicationName)" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="new-application-description" class="form-label">Description</label>
+                        <InputTextArea id="new-application-description" class="form-control"
+                                       maxlength="255" rows="2" @bind-Value="newApplication.Description" />
+                        <ValidationMessage For="@(() => newApplication.Description)" />
+                    </div>
+                    <p class="text-muted">New applications start active. Add roles afterward using Roles.</p>
+                    <button type="submit" class="btn btn-success">
+                        @(isCreatingApplication ? "Saving..." : "Save")
+                    </button>
+                    <button type="button" class="btn btn-secondary ms-2" @onclick="CancelCreateApplication">
+                        Cancel
+                    </button>
+                </fieldset>
+            </EditForm>
+        </div>
+    </div>
+}
+
 @if (!string.IsNullOrEmpty(errorMessage))
 {
     <div class="alert alert-danger" role="alert">
@@ -60,13 +114,13 @@ else
                                     <td>
                                         <div class="d-flex gap-2">
                                             <button class="btn btn-sm btn-primary"
-                                                    disabled="@(isLoadingRoles || isSavingRole || isSavingRoleEdit || isSavingApplicationEdit)"
+                                                    disabled="@(isLoadingRoles || isSavingRole || isSavingRoleEdit || isSavingApplicationEdit || isCreatingApplication)"
                                                     @onclick="() => ManageAsync(application)">
                                                 Roles
                                             </button>
 
                                             <button class="btn btn-sm btn-secondary"
-                                                    disabled="@(isLoadingRoles || isSavingRole || isSavingRoleEdit || isSavingApplicationEdit)"
+                                                    disabled="@(isLoadingRoles || isSavingRole || isSavingRoleEdit || isSavingApplicationEdit || isCreatingApplication)"
                                                     @onclick="() => BeginEditApplication(application)">
                                                 Edit
                                             </button>
@@ -305,6 +359,86 @@ else
 }
 
 @code {
+
+    private CreateApplicationRequest newApplication = new();
+    private bool showCreateApplication;
+    private bool isCreatingApplication;
+    private string? createApplicationError;
+
+    private void BeginCreateApplication()
+    {
+        selectedApplication = null;
+        roles.Clear();
+        showAddRole = false;
+        editingRoleId = null;
+        editingRoleName = null;
+        roleEdit = new();
+        editingApplicationId = null;
+        editingApplicationName = null;
+        applicationEdit = new();
+        applicationSuccessMessage = null;
+        applicationErrorMessage = null;
+        roleSuccessMessage = null;
+        roleErrorMessage = null;
+        newApplication = new();
+        createApplicationError = null;
+        showCreateApplication = true;
+    }
+
+    private void CancelCreateApplication()
+    {
+        showCreateApplication = false;
+        newApplication = new();
+        createApplicationError = null;
+    }
+
+    private async Task SaveNewApplicationAsync()
+    {
+        if (isCreatingApplication)
+            return;
+
+        isCreatingApplication = true;
+        createApplicationError = null;
+        applicationSuccessMessage = null;
+        applicationErrorMessage = null;
+
+        try
+        {
+            var result = await ApplicationUserService.CreateApplicationAsync(newApplication);
+
+            if (result is null || result.ReturnCode != 0)
+            {
+                createApplicationError = result?.Message ?? "Unable to confirm application creation.";
+                return;
+            }
+
+            CancelCreateApplication();
+            applicationSuccessMessage = result.Message;
+
+            try
+            {
+                applications = await ApplicationUserService.GetApplicationsAsync()
+                    ?? new List<ApplicationLookup>();
+            }
+            catch (Exception)
+            {
+                applicationErrorMessage = "The application was created, but the list could not be refreshed. Reload the page to view it.";
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            createApplicationError = ex.Message;
+        }
+        catch (Exception)
+        {
+            createApplicationError = "Unable to confirm whether the application was created. Reload the application list before trying again.";
+        }
+        finally
+        {
+            isCreatingApplication = false;
+        }
+    }
+
     private List<ApplicationLookup> applications = new();
     private List<RoleLookup> roles = new();
     private ApplicationLookup? selectedApplication;
@@ -326,6 +460,7 @@ else
 
     private void BeginEditApplication(ApplicationLookup application)
     {
+        CancelCreateApplication();
         // Close the roles section while editing an application.
         selectedApplication = null;
         roles.Clear();
@@ -525,6 +660,7 @@ else
 
     private async Task ManageAsync(ApplicationLookup application)
     {
+        CancelCreateApplication();
         editingRoleId = null;
         editingRoleName = null;
         roleEdit = new();

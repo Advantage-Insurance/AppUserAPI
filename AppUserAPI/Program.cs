@@ -182,6 +182,12 @@ applications.MapPut(
     UpdateApplicationDescription)
     .RequireAuthorization();
 
+// POST /applications
+applications.MapPost(
+    "/",
+    CreateApplication)
+    .RequireAuthorization();
+
 app.Run();
 
 
@@ -1633,6 +1639,118 @@ static async Task<IResult> UpdateApplicationDescription(
 
             _ => Results.Problem(
                 detail: "Unable to update the application description.",
+                statusCode: StatusCodes.Status500InternalServerError)
+        };
+    }
+    finally
+    {
+        await connection.CloseAsync();
+    }
+}
+
+static async Task<IResult> CreateApplication(
+    CreateApplicationRequest request,
+    HttpContext context,
+    ICurrentUserResolver currentUserResolver,
+    AppDbContext db,
+    CancellationToken cancellationToken)
+{
+    var currentUser = await currentUserResolver.GetCurrentUserAsync(
+        context.User,
+        cancellationToken);
+
+    if (currentUser is null)
+    {
+        return Results.Problem(
+            detail:
+                "The authenticated user is not registered in the User Management system.",
+            statusCode: StatusCodes.Status403Forbidden);
+    }
+
+    var connection = db.Database.GetDbConnection();
+
+    await connection.OpenAsync(cancellationToken);
+
+    try
+    {
+        await using var command = connection.CreateCommand();
+
+        command.CommandText = "Security.usp_CreateApplication";
+        command.CommandType = CommandType.StoredProcedure;
+
+        command.Parameters.Add(
+            new SqlParameter("@ApplicationCode", SqlDbType.NVarChar, -1)
+            {
+                Value = (object?)request.ApplicationCode ?? DBNull.Value
+            });
+
+        command.Parameters.Add(
+            new SqlParameter("@ApplicationName", SqlDbType.NVarChar, -1)
+            {
+                Value = (object?)request.ApplicationName ?? DBNull.Value
+            });
+
+        command.Parameters.Add(
+            new SqlParameter("@Description", SqlDbType.NVarChar, -1)
+            {
+                Value = (object?)request.Description ?? DBNull.Value
+            });
+
+        // Audit identity comes from Windows authentication.
+        command.Parameters.Add(
+            new SqlParameter("@CreatedBy", SqlDbType.Int)
+            {
+                Value = currentUser.UserID
+            });
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return Results.Problem(
+                "Security.usp_CreateApplication did not return a result.");
+        }
+
+        var returnCode =
+            reader.GetInt32(reader.GetOrdinal("ReturnCode"));
+
+        var applicationIdOrdinal =
+            reader.GetOrdinal("ApplicationID");
+
+        int? applicationId = reader.IsDBNull(applicationIdOrdinal)
+            ? null
+            : reader.GetInt32(applicationIdOrdinal);
+
+        var message =
+            reader.GetString(reader.GetOrdinal("Message"));
+
+        var result = new
+        {
+            ReturnCode = returnCode,
+            ApplicationID = applicationId,
+            Message = message
+        };
+
+        return returnCode switch
+        {
+            0 => Results.Created("/applications", result),
+
+            1 => Results.BadRequest(result),
+            2 => Results.BadRequest(result),
+            3 => Results.BadRequest(result),
+            4 => Results.BadRequest(result),
+            5 => Results.BadRequest(result),
+
+            6 => Results.Conflict(result),
+            7 => Results.Conflict(result),
+
+            8 => Results.Problem(
+                detail: message,
+                statusCode: StatusCodes.Status403Forbidden),
+
+            _ => Results.Problem(
+                detail: "Unable to create the application.",
                 statusCode: StatusCodes.Status500InternalServerError)
         };
     }
