@@ -208,6 +208,137 @@
 
 <hr />
 
+<h3>Update User Profile</h3>
+
+<p><code>PUT /users/{userId}/profile</code></p>
+
+<p>
+    Updates the user's shared first name, last name, and email
+    across all applications managed by AppUser.
+    Username, UserID, account status, roles, and application
+    assignments remain unchanged.
+</p>
+
+<p>
+    Requires Windows Authentication and an active registered caller.
+    ModifiedBy is determined by the API from the authenticated identity.
+    Clients do not supply audit fields.
+</p>
+
+<table class="table table-sm">
+    <thead>
+        <tr>
+            <th>Field</th>
+            <th>Required</th>
+            <th>Validation</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>firstName</td>
+            <td>Yes</td>
+            <td>Maximum 100 characters.</td>
+        </tr>
+        <tr>
+            <td>lastName</td>
+            <td>Yes</td>
+            <td>Maximum 100 characters.</td>
+        </tr>
+        <tr>
+            <td>email</td>
+            <td>Yes</td>
+            <td>
+                Valid email format, maximum 255 characters,
+                unique across users.
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<p>
+    Supply all three fields. Values are trimmed before storage.
+    Another user's email cannot be used, including an inactive user's email.
+</p>
+
+<h5>Example request</h5>
+
+<pre class="bg-light border rounded p-3"><code>&#123;
+  "firstName": "Javier",
+  "lastName": "DeJesus",
+  "email": "domingo.dejesus@advantagelife.com"
+&#125;</code></pre>
+
+<h5>Example response — 200 OK</h5>
+
+<pre class="bg-light border rounded p-3"><code>&#123;
+  "returnCode": 0,
+  "userID": 1,
+  "message": "User profile updated successfully."
+&#125;</code></pre>
+
+<table class="table table-sm">
+    <thead>
+        <tr>
+            <th>Return code</th>
+            <th>HTTP status</th>
+            <th>Meaning</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>0</td>
+            <td>200</td>
+            <td>Profile updated.</td>
+        </tr>
+        <tr>
+            <td>1</td>
+            <td>404</td>
+            <td>Target user does not exist.</td>
+        </tr>
+        <tr>
+            <td>2–7</td>
+            <td>400</td>
+            <td>A required field is missing or exceeds its maximum length.</td>
+        </tr>
+        <tr>
+            <td>8</td>
+            <td>409</td>
+            <td>Email already belongs to another user.</td>
+        </tr>
+        <tr>
+            <td>9</td>
+            <td>403</td>
+            <td>Audit user does not exist or is inactive.</td>
+        </tr>
+        <tr>
+            <td>10</td>
+            <td>200</td>
+            <td>Profile is unchanged; no update performed.</td>
+        </tr>
+        <tr>
+            <td>11</td>
+            <td>400</td>
+            <td>Email format is invalid.</td>
+        </tr>
+    </tbody>
+</table>
+
+<p>
+    Actual changes update ModifiedDate in UTC and ModifiedBy.
+    Creation fields are preserved.
+    Unchanged saves preserve modification fields as well.
+</p>
+
+<p>
+    Unauthenticated requests receive HTTP 401.
+    An authenticated caller who cannot be resolved to an active
+    registered user receives HTTP 403.
+    Unexpected server errors receive HTTP 500.
+    Forbidden and unexpected-error responses use Problem Details.
+</p>
+
+<hr />
+
 <h3>Application Management</h3>
 
 <table class="table table-striped">

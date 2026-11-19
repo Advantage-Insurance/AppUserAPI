@@ -23,9 +23,11 @@
             <label class="form-label">Application</label>
 
             <InputSelect class="form-select"
+                         disabled="@(isLoadingDetails || profileIsLocked)"
                          @bind-Value="applicationId"
                          @bind-Value:after="ApplicationChangedAsync">
-
+                
+                <option value="0">— No application selected —</option>
                 @foreach (var application in applications)
                 {
                     <option value="@application.ApplicationID">
@@ -40,9 +42,11 @@
             <label class="form-label">User</label>
 
             <InputSelect class="form-select"
+                         disabled="@(isLoadingDetails || profileIsLocked)"
                          @bind-Value="userId"
                          @bind-Value:after="UserChangedAsync">
 
+                <option value="0">— No user selected —</option>
                 @foreach (var user in securityUsers)
                 {
                     <option value="@user.UserID">
@@ -55,14 +59,11 @@
 
         <div class="mt-2 mb-3">
             <button class="btn btn-secondary"
+                    disabled="@isLoadingDetails"
                     @onclick="LoadAllAsync">
                 All Users
             </button>
 
-            <button class="btn btn-success"
-                    @onclick="FindUserAsync">
-                Show Details
-            </button>
         </div>
 
         @if (!string.IsNullOrEmpty(errorMessage))
@@ -74,45 +75,10 @@
 
         @if (selectedUser is not null)
         {
-            <div class="card mb-3">
-                <div class="card-body">
-
-                    <h5 class="card-title">
-                        @selectedUser.FirstName @selectedUser.LastName
-                    </h5>
-
-                    <p class="card-text">
-                        <strong>Application:</strong>
-                        @selectedUser.ApplicationCode
-                    </p>
-
-                    <p class="card-text">
-                        <strong>User Name:</strong>
-                        @selectedUser.UserName
-                    </p>
-
-                    <p class="card-text">
-                        <strong>Email:</strong>
-                        @selectedUser.Email
-                    </p>
-
-                    <p class="card-text">
-                        <strong>Role:</strong>
-                        @selectedUser.RoleName
-                    </p>
-
-                    <p class="card-text">
-                        <strong>User Status:</strong>
-                        <StatusBadge IsActive="@selectedUser.IsUserActive" />
-                    </p>
-
-                    <p class="card-text">
-                        <strong>Application Access:</strong>
-                        <StatusBadge IsActive="@selectedUser.IsApplicationAccessActive" />
-                    </p>
-
-                </div>
-            </div>
+            <UserProfileCard @key="selectedUser"
+                             User="@selectedUser"
+                             OnSaved="ApplySavedProfile"
+                             OnStateChanged="ProfileStateChanged" />
         }
 
         @if (users is null)
@@ -144,6 +110,7 @@
                             <th>Role</th>
                             <th>User Status</th>
                             <th>Application Access</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
 
@@ -158,6 +125,11 @@
                                 <td>@user.RoleName</td>
                                 <td><StatusBadge IsActive="@user.IsUserActive" /></td>
                                 <td><StatusBadge IsActive="@user.IsApplicationAccessActive" /></td>
+                                <td>
+                                    <UserDetailsButton User="@user"
+                                                       IsBusy="@(isLoadingDetails || profileIsLocked)"
+                                                       OnViewDetails="ViewUserDetailsAsync" />
+                                </td>
                             </tr>
                         }
                     </tbody>
@@ -168,6 +140,7 @@
     </div>
 </div>
 
+<fieldset disabled="@profileIsLocked">
 <div class="card mb-4">
     <div class="card-header">
         <h5 class="mb-0">Create User</h5>
@@ -518,6 +491,7 @@
 
     </div>
 </div>
+</fieldset>
 
 @code
 {
@@ -564,6 +538,99 @@
     private string? accessMessage;
     private string? accessErrorMessage;
 
+    private bool isLoadingDetails;
+
+    private bool profileIsLocked;
+
+    private void ProfileStateChanged(bool locked)
+    {
+        profileIsLocked = locked;
+    }
+
+    private void ApplySavedProfile(UpdateUserProfileRequest profile)
+    {
+        if (selectedUser is null)
+            return;
+
+        var savedUserId = selectedUser.UserID;
+
+        selectedUser.FirstName = profile.FirstName;
+        selectedUser.LastName = profile.LastName;
+        selectedUser.Email = profile.Email;
+
+        // Update every visible assignment for the same global user.
+        if (users is not null)
+        {
+            foreach (var user in users)
+            {
+                if (user.UserID == savedUserId)
+                {
+                    user.FirstName = profile.FirstName;
+                    user.LastName = profile.LastName;
+                    user.Email = profile.Email;
+                }
+            }
+        }
+
+        // Update names and email in the shared user dropdown data.
+        foreach (var user in securityUsers)
+        {
+            if (user.UserID == savedUserId)
+            {
+                user.FirstName = profile.FirstName;
+                user.LastName = profile.LastName;
+                user.Email = profile.Email;
+            }
+        }
+
+        if (selectedAccessAssignment is not null
+            && selectedAccessAssignment.UserID == savedUserId)
+        {
+            selectedAccessAssignment.FirstName = profile.FirstName;
+            selectedAccessAssignment.LastName = profile.LastName;
+            selectedAccessAssignment.Email = profile.Email;
+        }
+
+        if (userId == savedUserId)
+        {
+            statusMessage =
+                $"Showing applications for {profile.FirstName} {profile.LastName}";
+        }
+    }
+
+    private async Task ViewUserDetailsAsync(ApplicationUser user)
+    {
+        if (isLoadingDetails || profileIsLocked)
+            return;
+
+        isLoadingDetails = true;
+        errorMessage = null;
+        selectedUser = null;
+
+        try
+        {
+            selectedUser =
+                await ApplicationUserService.GetByApplicationAndUserAsync(
+                    user.ApplicationID,
+                    user.UserID);
+
+            if (selectedUser is null)
+            {
+                errorMessage =
+                    "This user’s application assignment could not be found. "
+                    + "Refresh the list and try again.";
+            }
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load user details. Please try again.";
+        }
+        finally
+        {
+            isLoadingDetails = false;
+        }
+    }
+
     protected override async Task OnInitializedAsync()
     {
         applications =
@@ -578,7 +645,7 @@
         {
             if (application.IsActive)
             {
-                applicationId = application.ApplicationID;
+                //applicationId = application.ApplicationID;
                 addToApplication.ApplicationID = application.ApplicationID;
                 break;
             }
@@ -588,7 +655,7 @@
         {
             if (user.IsActive)
             {
-                userId = user.UserID;
+                //userId = user.UserID;
                 attachUserId = user.UserID;
                 roleChangeUserId = user.UserID;
                 accessUserId = user.UserID;
@@ -633,6 +700,14 @@
 
     private async Task UserChangedAsync()
     {
+        applicationId = 0;
+
+        if (userId == 0)
+        {
+            await LoadAllAsync();
+            return;
+        }
+
         await LoadByUserAsync();
     }
 
@@ -661,8 +736,17 @@
 
     private async Task ApplicationChangedAsync()
     {
+        userId = 0;
+
+        if (applicationId == 0)
+        {
+            await LoadAllAsync();
+            return;
+        }
+
         await LoadByApplicationAsync();
     }
+
 
     private async Task RoleChangeUserChangedAsync()
     {
@@ -671,6 +755,9 @@
 
     private async Task LoadAllAsync()
     {
+        applicationId = 0;
+        userId = 0;
+
         try
         {
             errorMessage = null;
@@ -689,6 +776,13 @@
 
     private async Task FindUserAsync()
     {
+        if (applicationId == 0 || userId == 0)
+        {
+            selectedUser = null;
+            errorMessage = "Select both an application and a user to show details.";
+            return;
+        }
+
         try
         {
             errorMessage = null;

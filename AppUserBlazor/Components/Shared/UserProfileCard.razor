@@ -1,0 +1,298 @@
+﻿@using AppUserBlazor.Models
+@using AppUserBlazor.Services
+
+@inject ApplicationUserService ApplicationUserService
+@inject IJSRuntime JS
+
+<NavigationLock ConfirmExternalNavigation="@HasChanges"
+                OnBeforeInternalNavigation="ConfirmNavigationAsync" />
+
+<div class="card mb-3">
+    <div class="card-header">
+        <h5 class="mb-0">User Details</h5>
+    </div>
+
+    <div class="card-body">
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <h5>User Profile</h5>
+
+                <p class="text-muted">
+                    Shared across all applications
+                </p>
+
+                <p>
+                    <strong>Username:</strong> @User.UserName
+                </p>
+
+                <p>
+                    <strong>User Status:</strong>
+                    <StatusBadge IsActive="@User.IsUserActive" />
+                </p>
+
+                <div class="alert alert-info">
+                    Changes to name and email apply across all
+                    applications.
+                </div>
+
+                @if (!string.IsNullOrEmpty(successMessage))
+                {
+                    <div class="alert alert-success" role="status">
+                        @successMessage
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(profileError))
+                {
+                    <div class="alert alert-danger" role="alert">
+                        @profileError
+                    </div>
+                }
+
+                <EditForm Model="@profile"
+                          OnValidSubmit="SaveProfileAsync">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary class="text-danger" />
+
+                    <fieldset disabled="@isSaving">
+                        <div class="mb-3">
+                            <label for="profile-first-name"
+                                   class="form-label">
+                                First name
+                            </label>
+
+                            <input id="profile-first-name"
+                                   class="form-control"
+                                   maxlength="100"
+                                   @bind="profile.FirstName"
+                                   @bind:event="oninput"
+                                   @bind:after="ProfileChangedAsync" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="profile-last-name"
+                                   class="form-label">
+                                Last name
+                            </label>
+
+                            <input id="profile-last-name"
+                                   class="form-control"
+                                   maxlength="100"
+                                   @bind="profile.LastName"
+                                   @bind:event="oninput"
+                                   @bind:after="ProfileChangedAsync" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="profile-email"
+                                   class="form-label">
+                                Email
+                            </label>
+
+                            <input id="profile-email"
+                                   type="email"
+                                   class="form-control"
+                                   maxlength="255"
+                                   @bind="profile.Email"
+                                   @bind:event="oninput"
+                                   @bind:after="ProfileChangedAsync" />
+                        </div>
+
+                        <button type="submit"
+                                class="btn btn-success"
+                                disabled="@(!HasChanges || isSaving)">
+                            @(isSaving ? "Saving..." : "Save Changes")
+                        </button>
+
+                        <button type="button"
+                                class="btn btn-secondary ms-2"
+                                disabled="@(!HasChanges || isSaving)"
+                                @onclick="ResetProfileAsync">
+                            Reset
+                        </button>
+                    </fieldset>
+                </EditForm>
+
+                @if (HasChanges)
+                {
+                    <p class="text-muted small mt-3 mb-0">
+                        You have unsaved changes. Save or reset before
+                        browsing another user or using the other forms.
+                    </p>
+                }
+            </div>
+
+            <div class="col-lg-5">
+                <div class="border rounded p-3 h-100">
+                    <h5>Selected Application Access</h5>
+
+                    <p>
+                        <strong>Application:</strong>
+                        @User.ApplicationCode
+                    </p>
+
+                    <p>
+                        <strong>Role:</strong>
+                        @User.RoleName
+                    </p>
+
+                    <p>
+                        <strong>User’s Access:</strong>
+                        <StatusBadge IsActive="@User.IsApplicationAccessActive" />
+                    </p>
+
+                    <p class="text-muted small mb-0">
+                        Access assignment for this application only.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public ApplicationUser User { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<UpdateUserProfileRequest> OnSaved { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OnStateChanged { get; set; }
+
+    private ApplicationUser? loadedUser;
+    private UpdateUserProfileRequest profile = new();
+
+    private string originalFirstName = string.Empty;
+    private string originalLastName = string.Empty;
+    private string originalEmail = string.Empty;
+
+    private bool isSaving;
+    private string? successMessage;
+    private string? profileError;
+
+    private bool HasChanges =>
+        profile.FirstName != originalFirstName
+        || profile.LastName != originalLastName
+        || profile.Email != originalEmail;
+
+    protected override void OnParametersSet()
+    {
+        if (!ReferenceEquals(loadedUser, User))
+        {
+            loadedUser = User;
+            LoadProfile();
+            successMessage = null;
+            profileError = null;
+        }
+    }
+
+    private void LoadProfile()
+    {
+        originalFirstName = User.FirstName ?? string.Empty;
+        originalLastName = User.LastName ?? string.Empty;
+        originalEmail = User.Email ?? string.Empty;
+
+        profile = new()
+        {
+            FirstName = originalFirstName,
+            LastName = originalLastName,
+            Email = originalEmail
+        };
+    }
+
+    private async Task ProfileChangedAsync()
+    {
+        successMessage = null;
+        profileError = null;
+
+        await OnStateChanged.InvokeAsync(HasChanges || isSaving);
+    }
+
+    private async Task ResetProfileAsync()
+    {
+        LoadProfile();
+        successMessage = null;
+        profileError = null;
+
+        await OnStateChanged.InvokeAsync(false);
+    }
+
+    private async Task SaveProfileAsync()
+    {
+        if (isSaving || !HasChanges)
+            return;
+
+        isSaving = true;
+        successMessage = null;
+        profileError = null;
+
+        await OnStateChanged.InvokeAsync(true);
+
+        try
+        {
+            var request = new UpdateUserProfileRequest
+            {
+                FirstName = profile.FirstName.Trim(),
+                LastName = profile.LastName.Trim(),
+                Email = profile.Email.Trim()
+            };
+
+            var result =
+                await ApplicationUserService.UpdateUserProfileAsync(
+                    User.UserID,
+                    request);
+
+            if (result is null
+                || (result.ReturnCode != 0 && result.ReturnCode != 10))
+            {
+                profileError = result?.Message
+                    ?? "Unable to confirm the profile update.";
+                return;
+            }
+
+            // Update the parent page's copies of this user's profile.
+            await OnSaved.InvokeAsync(request);
+
+            LoadProfile();
+            successMessage = result.Message;
+        }
+        catch (InvalidOperationException ex)
+        {
+            profileError = ex.Message;
+        }
+        catch (Exception)
+        {
+            profileError =
+                "Unable to confirm whether the profile was updated. "
+                + "Check the saved profile before submitting again.";
+        }
+        finally
+        {
+            isSaving = false;
+            await OnStateChanged.InvokeAsync(HasChanges);
+        }
+    }
+
+    private async Task ConfirmNavigationAsync(
+        Microsoft.AspNetCore.Components.Routing.LocationChangingContext context)
+    {
+        if (isSaving)
+        {
+            context.PreventNavigation();
+            return;
+        }
+
+        if (!HasChanges)
+            return;
+
+        var discard = await JS.InvokeAsync<bool>(
+            "confirm",
+            "You have unsaved profile changes. Discard them and leave this page?");
+
+        if (!discard)
+        {
+            context.PreventNavigation();
+        }
+    }
+}

@@ -1,0 +1,24 @@
+﻿@using AppUserBlazor.Models
+
+<button type="button"
+        class="btn btn-sm btn-primary text-nowrap"
+        disabled="@IsBusy"
+        @onclick="ViewDetailsAsync">
+    View / Edit User
+</button>
+
+@code {
+    [Parameter, EditorRequired]
+    public ApplicationUser User { get; set; } = default!;
+
+    [Parameter]
+    public bool IsBusy { get; set; }
+
+    [Parameter]
+    public EventCallback<ApplicationUser> OnViewDetails { get; set; }
+
+    private async Task ViewDetailsAsync()
+    {
+        await OnViewDetails.InvokeAsync(User);
+    }
+}

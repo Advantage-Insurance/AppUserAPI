@@ -188,6 +188,12 @@ applications.MapPost(
     CreateApplication)
     .RequireAuthorization();
 
+// PUT /users/1/profile
+app.MapPut(
+    "/users/{userId}/profile",
+    UpdateUserProfile)
+    .RequireAuthorization();
+
 app.Run();
 
 
@@ -1751,6 +1757,140 @@ static async Task<IResult> CreateApplication(
 
             _ => Results.Problem(
                 detail: "Unable to create the application.",
+                statusCode: StatusCodes.Status500InternalServerError)
+        };
+    }
+    finally
+    {
+        await connection.CloseAsync();
+    }
+}
+
+static async Task<IResult> UpdateUserProfile(
+    int userId,
+    UpdateUserProfileRequest request,
+    HttpContext context,
+    ICurrentUserResolver currentUserResolver,
+    AppDbContext db,
+    CancellationToken cancellationToken)
+{
+    var currentUser = await currentUserResolver.GetCurrentUserAsync(
+        context.User,
+        cancellationToken);
+
+    if (currentUser is null)
+    {
+        return Results.Problem(
+            detail:
+                "The authenticated user is not registered in the User Management system.",
+            statusCode: StatusCodes.Status403Forbidden);
+    }
+
+    var email = request.Email?.Trim();
+
+    // Required-field and length validation remain in the procedure.
+    // The API additionally validates the format of a supplied email.
+    if (!string.IsNullOrWhiteSpace(email))
+    {
+        var emailValidator =
+            new System.ComponentModel.DataAnnotations.EmailAddressAttribute();
+
+        if (!emailValidator.IsValid(email))
+        {
+            return Results.BadRequest(new
+            {
+                ReturnCode = 11,
+                UserID = userId,
+                Message = "Enter a valid email address."
+            });
+        }
+    }
+
+    var connection = db.Database.GetDbConnection();
+
+    await connection.OpenAsync(cancellationToken);
+
+    try
+    {
+        await using var command = connection.CreateCommand();
+
+        command.CommandText = "Security.usp_UpdateUserProfile";
+        command.CommandType = CommandType.StoredProcedure;
+
+        command.Parameters.Add(
+            new SqlParameter("@UserID", SqlDbType.Int)
+            {
+                Value = userId
+            });
+
+        command.Parameters.Add(
+            new SqlParameter("@FirstName", SqlDbType.NVarChar, -1)
+            {
+                Value = (object?)request.FirstName ?? DBNull.Value
+            });
+
+        command.Parameters.Add(
+            new SqlParameter("@LastName", SqlDbType.NVarChar, -1)
+            {
+                Value = (object?)request.LastName ?? DBNull.Value
+            });
+
+        command.Parameters.Add(
+            new SqlParameter("@Email", SqlDbType.NVarChar, -1)
+            {
+                Value = (object?)email ?? DBNull.Value
+            });
+
+        command.Parameters.Add(
+            new SqlParameter("@ModifiedBy", SqlDbType.Int)
+            {
+                Value = currentUser.UserID
+            });
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return Results.Problem(
+                "Security.usp_UpdateUserProfile did not return a result.");
+        }
+
+        var returnCode =
+            reader.GetInt32(reader.GetOrdinal("ReturnCode"));
+
+        var message =
+            reader.GetString(reader.GetOrdinal("Message"));
+
+        var result = new
+        {
+            ReturnCode = returnCode,
+            UserID = userId,
+            Message = message
+        };
+
+        return returnCode switch
+        {
+            0 => Results.Ok(result),
+            1 => Results.NotFound(result),
+
+            2 => Results.BadRequest(result),
+            3 => Results.BadRequest(result),
+            4 => Results.BadRequest(result),
+            5 => Results.BadRequest(result),
+            6 => Results.BadRequest(result),
+            7 => Results.BadRequest(result),
+
+            8 => Results.Conflict(result),
+
+            9 => Results.Problem(
+                detail: message,
+                statusCode: StatusCodes.Status403Forbidden),
+
+            10 => Results.Ok(result),
+
+            _ => Results.Problem(
+                detail: "Unable to update the user profile.",
                 statusCode: StatusCodes.Status500InternalServerError)
         };
     }
